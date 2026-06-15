@@ -4,9 +4,9 @@
 
 ## 模块进度
 
-- [ ] `project-setup.md`：项目骨架、开发命令和基础配置
-- [ ] `data-models.md`：核心 Pydantic/TypeScript 数据模型
-- [ ] `backend-api.md`：FastAPI health 与 analysis API
+- [x] `project-setup.md`：项目骨架、开发命令和基础配置
+- [x] `data-models.md`：核心 Pydantic/TypeScript 数据模型
+- [x] `backend-api.md`：FastAPI health 与 analysis API
 - [ ] `document-processing.md`：文本标准化与 chunking
 - [ ] `retrieval.md`：embedding、Chroma indexing 与 evidence retrieval
 - [ ] `llm-service.md`：LLM client、prompt 与 structured output
@@ -38,8 +38,8 @@
 
 ## MVP 完成检查
 
-- [ ] 用户可以输入个人材料和岗位 JD
-- [ ] 后端可以校验请求并返回结构化 response
+- [x] 用户可以输入个人材料和岗位 JD
+- [x] 后端可以校验请求并返回结构化 response
 - [ ] 文档处理模块可以生成带 metadata 的 chunks
 - [ ] 检索模块可以返回带 source snippet 的 evidence
 - [ ] JD requirements 可以被结构化提取
@@ -47,5 +47,5 @@
 - [ ] 生成内容包含 evidence references
 - [ ] evaluator 可以标记 unsupported claims 和 coverage gaps
 - [ ] 前端可以展示结果、证据和风险提示
-- [ ] 核心模块有单元测试
+- [x] 核心模块有单元测试
 - [ ] 完整 workflow 有 fixture 集成测试
