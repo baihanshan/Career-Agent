@@ -1,0 +1,306 @@
+:root {
+  color: #172033;
+  background: #f6f7f9;
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f7f9;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 20px 56px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 4px 0 8px;
+  font-size: 40px;
+  line-height: 1.1;
+}
+
+.page-header p {
+  max-width: 720px;
+  margin: 0;
+  color: #4b5563;
+  line-height: 1.7;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.field textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #cfd5df;
+  border-radius: 8px;
+  padding: 14px;
+  color: #172033;
+  background: #ffffff;
+  line-height: 1.6;
+  outline: none;
+}
+
+.field textarea:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.form-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 18px;
+  color: #ffffff;
+  background: #31572c;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.form-actions button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.form-actions span,
+.muted {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.status,
+.empty-state,
+.panel {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.status strong {
+  display: block;
+  font-size: 18px;
+}
+
+.status p {
+  margin: 0;
+  color: #991b1b;
+}
+
+.status-loading {
+  border-color: #bfdbfe;
+}
+
+.status-success {
+  border-color: #bbf7d0;
+}
+
+.status-error {
+  border-color: #fecaca;
+}
+
+.progress-bar {
+  width: 160px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbeafe;
+}
+
+.progress-bar::after {
+  display: block;
+  width: 45%;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  content: "";
+  animation: loading-slide 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes loading-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(125%);
+  }
+}
+
+.empty-state {
+  padding: 28px;
+  color: #4b5563;
+}
+
+.empty-state h2,
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.result-main,
+.result-side {
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  padding: 18px;
+}
+
+.panel p {
+  line-height: 1.7;
+}
+
+.bullet-list,
+.prep-list,
+.evidence-list,
+.warning-list {
+  display: grid;
+  gap: 12px;
+}
+
+.bullet-item,
+.prep-item,
+.evidence-item,
+.warning-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+}
+
+.bullet-item p,
+.evidence-item p,
+.warning-item p,
+.prep-item p {
+  margin: 0 0 10px;
+}
+
+.chip-row,
+.evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip,
+.evidence-meta span,
+.severity {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.risk-low,
+.severity-low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.risk-medium,
+.severity-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.risk-high,
+.severity-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.evidence-item code {
+  color: #374151;
+  font-size: 12px;
+}
+
+.risk-summary {
+  margin-top: 0;
+  color: #4b5563;
+}
+
+.specificity-list {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: #4b5563;
+}
+
+@media (max-width: 860px) {
+  .input-grid,
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header h1 {
+    font-size: 32px;
+  }
+
+  .status,
+  .form-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
