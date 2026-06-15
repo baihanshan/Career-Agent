@@ -9,7 +9,7 @@
 - [x] `backend-api.md`：FastAPI health 与 analysis API
 - [x] `document-processing.md`：文本标准化与 chunking
 - [x] `retrieval.md`：embedding、Chroma indexing 与 evidence retrieval
-- [ ] `llm-service.md`：LLM client、prompt 与 structured output
+- [x] `llm-service.md`：LLM client、prompt 与 structured output
 - [ ] `match-scoring.md`：岗位要求匹配评分
 - [ ] `writer.md`：简历 bullet、cover letter 与面试建议生成
 - [ ] `evaluator.md`：grounding、coverage、specificity 与 risk 检查
@@ -42,7 +42,7 @@
 - [x] 后端可以校验请求并返回结构化 response
 - [x] 文档处理模块可以生成带 metadata 的 chunks
 - [x] 检索模块可以返回带 source snippet 的 evidence
-- [ ] JD requirements 可以被结构化提取
+- [x] JD requirements 可以被结构化提取
 - [ ] match analysis 可以标记 strong、partial、weak、missing
 - [ ] 生成内容包含 evidence references
 - [ ] evaluator 可以标记 unsupported claims 和 coverage gaps
