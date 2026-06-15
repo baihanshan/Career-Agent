@@ -18,6 +18,7 @@ class WorkflowState(BaseModel):
     profile_documents: list[ProfileDocument]
     job_description: str
     run_config: RunConfig = Field(default_factory=RunConfig)
+    profile_index_id: str | None = None
     profile_chunks: list[ProfileChunk] = Field(default_factory=list)
     processing_warnings: list[str] = Field(default_factory=list)
     jd_requirements: list[JDRequirement] = Field(default_factory=list)
@@ -26,3 +27,7 @@ class WorkflowState(BaseModel):
     generated_assets: GeneratedAssets | None = None
     evaluation_report: EvaluationReport | None = None
     errors: list[str] = Field(default_factory=list)
+
+
+class AnalysisState(WorkflowState):
+    pass
