@@ -12,7 +12,7 @@
 - [x] `llm-service.md`：LLM client、prompt 与 structured output
 - [x] `match-scoring.md`：岗位要求匹配评分
 - [x] `writer.md`：简历 bullet、cover letter 与面试建议生成
-- [ ] `evaluator.md`：grounding、coverage、specificity 与 risk 检查
+- [x] `evaluator.md`：grounding、coverage、specificity 与 risk 检查
 - [ ] `workflow.md`：LangGraph 状态机与节点编排
 - [ ] `frontend.md`：输入、运行状态、结果和风险展示
 - [ ] `error-handling.md`：统一错误类型、API 错误响应和 warning 策略
@@ -45,7 +45,7 @@
 - [x] JD requirements 可以被结构化提取
 - [x] match analysis 可以标记 strong、partial、weak、missing
 - [x] 生成内容包含 evidence references
-- [ ] evaluator 可以标记 unsupported claims 和 coverage gaps
+- [x] evaluator 可以标记 unsupported claims 和 coverage gaps
 - [ ] 前端可以展示结果、证据和风险提示
 - [x] 核心模块有单元测试
 - [ ] 完整 workflow 有 fixture 集成测试
