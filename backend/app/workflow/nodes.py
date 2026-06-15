@@ -4,6 +4,14 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from backend.app.api.schemas import AnalysisRequest, AnalysisResponse
+from backend.app.core.errors import (
+    AppError,
+    DocumentProcessingErrorCode,
+    LLMErrorCode,
+    ProcessingWarning,
+    VectorStoreErrorCode,
+    WorkflowErrorCode,
+)
 from backend.app.documents.chunker import chunk_profile_document
 from backend.app.evaluation.evaluator import evaluate_generated_assets
 from backend.app.llm.client import LLMService
@@ -14,11 +22,7 @@ from backend.app.workflow.state import AnalysisState
 from backend.app.workflow.writer import write_application as generate_application
 
 
-INDEXING_ERROR = "INDEXING_ERROR"
-LLM_OUTPUT_PARSE_ERROR = "LLM_OUTPUT_PARSE_ERROR"
-RETRIEVAL_ERROR = "RETRIEVAL_ERROR"
-WRITER_ERROR = "WRITER_ERROR"
-EVALUATION_ERROR = "EVALUATION_ERROR"
+SHORT_PROFILE_CONTENT_CHARS = 40
 
 
 @dataclass
@@ -38,6 +42,11 @@ def parse_inputs(request: AnalysisRequest) -> AnalysisState:
 
 def index_profile(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
+        processing_warnings = [
+            warning
+            for document in state.profile_documents
+            for warning in _warnings_for_document(document)
+        ]
         profile_chunks = [
             chunk
             for document in state.profile_documents
@@ -48,12 +57,13 @@ def index_profile(state: AnalysisState, services: WorkflowServices) -> AnalysisS
             update={
                 "profile_chunks": profile_chunks,
                 "profile_index_id": profile_index_id,
+                "processing_warnings": processing_warnings,
             }
         )
     except Exception:
         return _append_error(
             state,
-            INDEXING_ERROR,
+            VectorStoreErrorCode.VECTOR_STORE_ERROR.value,
             "Profile materials could not be indexed. Please try again.",
         )
 
@@ -65,7 +75,7 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
     except LLMOutputParseError:
         return _append_error(
             state,
-            LLM_OUTPUT_PARSE_ERROR,
+            LLMErrorCode.LLM_OUTPUT_PARSE_ERROR.value,
             "Job description could not be parsed into structured requirements.",
         )
 
@@ -80,7 +90,7 @@ def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> Analy
     except Exception:
         return _append_error(
             state,
-            RETRIEVAL_ERROR,
+            WorkflowErrorCode.RETRIEVAL_ERROR.value,
             "Evidence retrieval failed. Please try again.",
         )
 
@@ -105,7 +115,7 @@ def write_application(state: AnalysisState, services: WorkflowServices) -> Analy
     except Exception:
         return _append_error(
             state,
-            WRITER_ERROR,
+            WorkflowErrorCode.WRITER_ERROR.value,
             "Application assets could not be generated safely.",
         )
 
@@ -115,7 +125,7 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
         if state.generated_assets is None:
             return _append_error(
                 state,
-                EVALUATION_ERROR,
+                WorkflowErrorCode.EVALUATION_ERROR.value,
                 "Generated assets are missing and cannot be evaluated.",
             )
         evaluation_report = evaluate_generated_assets(
@@ -128,18 +138,17 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
     except Exception:
         return _append_error(
             state,
-            EVALUATION_ERROR,
+            WorkflowErrorCode.EVALUATION_ERROR.value,
             "Generated assets could not be evaluated.",
         )
 
 
 def finalize_response(state: AnalysisState) -> AnalysisResponse:
     if state.errors:
-        code, message = _split_error(state.errors[0])
         return AnalysisResponse(
             analysis_id=state.analysis_id,
             status="failed",
-            error={"code": code, "message": message},
+            error=state.errors[0].model_dump(mode="json"),
         )
 
     return AnalysisResponse(
@@ -166,7 +175,9 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
                 if state.evaluation_report is not None
                 else None
             ),
-            "processing_warnings": state.processing_warnings,
+            "processing_warnings": [
+                warning.model_dump(mode="json") for warning in state.processing_warnings
+            ],
         },
     )
 
@@ -182,9 +193,18 @@ def _extract_jd_requirements_with_retry(
 
 
 def _append_error(state: AnalysisState, code: str, message: str) -> AnalysisState:
-    return state.model_copy(update={"errors": [*state.errors, f"{code}: {message}"]})
+    return state.model_copy(
+        update={"errors": [*state.errors, AppError(code=code, message=message)]}
+    )
 
 
-def _split_error(error: str) -> tuple[str, str]:
-    code, _, message = error.partition(": ")
-    return code, message or "Workflow failed."
+def _warnings_for_document(document) -> list[ProcessingWarning]:
+    if len(document.content.strip()) >= SHORT_PROFILE_CONTENT_CHARS:
+        return []
+    return [
+        ProcessingWarning(
+            code=DocumentProcessingErrorCode.PROFILE_CONTENT_SHORT.value,
+            message="Profile material is short; generated output may be less specific.",
+            source=document.source_name,
+        )
+    ]

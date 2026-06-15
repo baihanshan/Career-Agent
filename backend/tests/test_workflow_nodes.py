@@ -146,8 +146,9 @@ def test_vector_store_failure_returns_indexing_error_response():
 
     assert response.status == "failed"
     assert response.error == {
-        "code": "INDEXING_ERROR",
+        "code": "VECTOR_STORE_ERROR",
         "message": "Profile materials could not be indexed. Please try again.",
+        "details": None,
     }
 
 

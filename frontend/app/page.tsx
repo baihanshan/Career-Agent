@@ -109,7 +109,9 @@ function EmptyState() {
   return (
     <section className="empty-state">
       <h2>结果区</h2>
-      <p>完成分析后，这里会展示匹配总结、证据表、简历要点、求职信草稿、面试准备和风险提示。</p>
+      <p>
+        完成分析后，这里会展示匹配总结、证据表、简历要点、求职信草稿、面试准备、流程警告和风险提示。
+      </p>
     </section>
   );
 }

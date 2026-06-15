@@ -15,7 +15,7 @@
 - [x] `evaluator.md`：grounding、coverage、specificity 与 risk 检查
 - [x] `workflow.md`：LangGraph 状态机与节点编排
 - [x] `frontend.md`：输入、运行状态、结果和风险展示
-- [ ] `error-handling.md`：统一错误类型、API 错误响应和 warning 策略
+- [x] `error-handling.md`：统一错误类型、API 错误响应和 warning 策略
 - [ ] `testing-fixtures.md`：样例 profile、JD、fake LLM、集成测试 fixture
 - [ ] `deployment-docs.md`：Docker、README、demo walkthrough 与作品集说明
 

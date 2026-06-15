@@ -99,6 +99,12 @@ export interface CoverageGap {
   severity: Severity;
 }
 
+export interface ProcessingWarning {
+  code: string;
+  message: string;
+  source?: string | null;
+}
+
 export interface EvaluationReport {
   grounding_warnings: GroundingWarning[];
   coverage_gaps: CoverageGap[];
@@ -113,6 +119,7 @@ export interface AnalysisResult {
   match_analysis: MatchItem[];
   generated_assets: GeneratedAssets;
   evaluation_report: EvaluationReport;
+  processing_warnings?: ProcessingWarning[];
 }
 
 export interface AnalysisRequest {

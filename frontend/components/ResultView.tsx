@@ -1,5 +1,6 @@
 import type { AnalysisResult } from "../lib/types";
 import { EvidenceTable } from "./EvidenceTable";
+import { ProcessingWarnings } from "./ProcessingWarnings";
 import { RiskWarnings } from "./RiskWarnings";
 
 interface ResultViewProps {
@@ -62,6 +63,7 @@ export function ResultView({ result }: ResultViewProps) {
       </div>
 
       <aside className="result-side">
+        <ProcessingWarnings warnings={result.processing_warnings ?? []} />
         <EvidenceTable evidence={result.evidence_table} />
         <RiskWarnings report={result.evaluation_report} />
       </aside>

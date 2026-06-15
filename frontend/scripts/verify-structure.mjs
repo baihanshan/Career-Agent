@@ -7,6 +7,7 @@ const requiredPaths = [
   "components/EvidenceTable.tsx",
   "components/JobDescriptionInput.tsx",
   "components/ProfileInput.tsx",
+  "components/ProcessingWarnings.tsx",
   "components/ResultView.tsx",
   "components/RiskWarnings.tsx",
   "components/RunStatus.tsx",
@@ -30,6 +31,7 @@ const requiredCopy = [
   "匹配总结",
   "证据表",
   "风险提示",
+  "流程警告",
 ];
 const missingCopy = requiredCopy.filter((copy) => !page.includes(copy));
 
