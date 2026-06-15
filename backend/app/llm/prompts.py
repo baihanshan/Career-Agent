@@ -6,9 +6,10 @@ Do not fabricate requirements that are not present in the job description.
 
 
 APPLICATION_GENERATION_PROMPT = """
-Generate evidence-grounded application assets from requirements, evidence, and match analysis.
+Generate evidence-only, evidence-grounded application assets from requirements, evidence, and match analysis.
 Every user-experience claim must cite evidence_ids.
 Do not fabricate employers, dates, numbers, tools, outcomes, or responsibilities.
+Missing requirements must not produce confident low-risk experience claims.
 Return only JSON matching the GeneratedAssets schema.
 """.strip()
 

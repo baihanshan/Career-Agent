@@ -19,18 +19,18 @@
 
 ## 最小任务清单
 
-- [ ] 创建 `backend/app/workflow/writer.py`。
-- [ ] 创建 `backend/tests/test_writer.py`。
-- [ ] 写测试：writer 输入 requirements、evidence、match items 后返回 `GeneratedAssets`。
-- [ ] 实现 `build_writer_context(...)`。
-- [ ] 实现 `write_application(...)`，先接入 fake LLM。
-- [ ] 写测试：每条 resume bullet 至少包含一个 evidence id，或 risk_level 为 high。
-- [ ] 实现 bullet evidence 校验。
-- [ ] 写测试：missing requirement 不生成 low-risk bullet。
-- [ ] 实现 missing requirement 的降级处理。
-- [ ] 写测试：cover letter 包含 opening、body、closing。
-- [ ] 确保 cover letter parser 生成完整结构。
-- [ ] 写测试：interview prep item 包含 topic、why_it_matters、prep_suggestion。
-- [ ] 确保 interview prep parser 生成完整结构。
-- [ ] 在 writer prompt 中加入 evidence-only 约束。
-- [ ] 运行 writer 测试。
+- [x] 创建 `backend/app/workflow/writer.py`。
+- [x] 创建 `backend/tests/test_writer.py`。
+- [x] 写测试：writer 输入 requirements、evidence、match items 后返回 `GeneratedAssets`。
+- [x] 实现 `build_writer_context(...)`。
+- [x] 实现 `write_application(...)`，先接入 fake LLM。
+- [x] 写测试：每条 resume bullet 至少包含一个 evidence id，或 risk_level 为 high。
+- [x] 实现 bullet evidence 校验。
+- [x] 写测试：missing requirement 不生成 low-risk bullet。
+- [x] 实现 missing requirement 的降级处理。
+- [x] 写测试：cover letter 包含 opening、body、closing。
+- [x] 确保 cover letter parser 生成完整结构。
+- [x] 写测试：interview prep item 包含 topic、why_it_matters、prep_suggestion。
+- [x] 确保 interview prep parser 生成完整结构。
+- [x] 在 writer prompt 中加入 evidence-only 约束。
+- [x] 运行 writer 测试。
