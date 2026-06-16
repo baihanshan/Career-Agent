@@ -19,3 +19,4 @@ dist/
 chroma/
 
 .DS_Store
+.superpowers/

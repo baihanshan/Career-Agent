@@ -1,0 +1,14 @@
+We are hiring an early-career AI application engineer to build evidence-grounded career tools.
+
+Responsibilities:
+- Build Python APIs for AI product workflows.
+- Implement retrieval augmented generation over user-provided documents.
+- Collaborate with product and frontend partners to ship usable workflows.
+
+Hard skills:
+- Python, FastAPI, Pydantic, and API testing.
+- Retrieval, embeddings, and evidence-based generation.
+
+Nice-to-have:
+- Experience with LangGraph or deterministic agent workflow orchestration.
+- Experience presenting GitHub portfolio projects.
