@@ -17,7 +17,7 @@
 - [x] `frontend.md`：输入、运行状态、结果和风险展示
 - [x] `error-handling.md`：统一错误类型、API 错误响应和 warning 策略
 - [x] `testing-fixtures.md`：样例 profile、JD、fake LLM、集成测试 fixture
-- [ ] `deployment-docs.md`：Docker、README、demo walkthrough 与作品集说明
+- [x] `deployment-docs.md`：Docker、README、demo walkthrough 与作品集说明
 
 ## 推荐执行顺序
 
