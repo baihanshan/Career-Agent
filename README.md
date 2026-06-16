@@ -51,4 +51,14 @@ npm run check
 ## Current API
 
 - `GET /health` returns `{ "status": "ok" }`.
-- `POST /analysis` accepts profile documents and a job description, validates the request, and returns a mock completed response until the full workflow module is implemented.
+- `POST /analysis` accepts profile documents and a job description, validates the request, runs the workflow, and returns structured requirements, evidence, match analysis, generated assets, evaluation report, and warnings.
+
+## Test Fixtures
+
+Stable workflow fixtures live in `backend/tests/fixtures/`.
+
+- `sample_profile.md` contains a compact candidate profile with education, AI coursework, skills, and a GitHub project.
+- `sample_jd.txt` contains hard skills, responsibilities, and nice-to-have requirements.
+- `fake_llm_*.json` files provide deterministic LLM outputs for integration tests.
+
+These fixtures let the core workflow run in tests without depending on a live model provider or nondeterministic model responses.
