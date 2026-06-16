@@ -185,6 +185,31 @@ def test_fake_llm_semantic_grounding_warnings_are_included():
     assert service.client.calls[0]["prompt_key"] == "evaluate_claim_grounding"
 
 
+def test_semantic_grounding_parse_failure_does_not_fail_evaluation():
+    service = LLMService(
+        client=FakeLLMClient(responses={"evaluate_claim_grounding": "not json"})
+    )
+
+    report = evaluate_generated_assets(
+        assets=_assets(
+            resume_bullets=[
+                ResumeBullet(
+                    text="Built Python FastAPI services for a course project.",
+                    target_requirement_ids=["req_python"],
+                    evidence_ids=["ev_python"],
+                    risk_level="low",
+                )
+            ]
+        ),
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+        llm_service=service,
+    )
+
+    assert report.overall_status == "pass_with_warnings"
+    assert "语义证据评估未完成" in report.specificity_notes[0]
+
+
 def _assets(resume_bullets: list[ResumeBullet]) -> GeneratedAssets:
     return GeneratedAssets(
         match_summary="Python API fit.",

@@ -11,6 +11,7 @@ export type RiskLevel = "low" | "medium" | "high";
 export type Severity = "low" | "medium" | "high";
 export type OverallStatus = "pass" | "pass_with_warnings" | "fail";
 export type AnalysisStatus = "completed" | "failed";
+export type LlmProvider = "local" | "openai" | "deepseek" | "openai_compatible";
 
 export interface ProfileDocument {
   document_id?: string;
@@ -126,9 +127,12 @@ export interface AnalysisRequest {
   profile_documents: ProfileDocument[];
   job_description: string;
   run_config?: {
+    provider?: LlmProvider;
     model?: string;
     temperature?: number;
     top_k?: number;
+    api_key?: string;
+    base_url?: string;
   };
 }
 

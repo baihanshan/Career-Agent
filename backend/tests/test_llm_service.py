@@ -1,7 +1,13 @@
 import pytest
+import httpx
 
 from backend.app.api.schemas import EvidenceItem, JDRequirement
-from backend.app.llm.client import FakeLLMClient, LLMService
+from backend.app.llm.client import (
+    FakeLLMClient,
+    LLMService,
+    OpenAICompatibleChatClient,
+    OpenAIResponsesClient,
+)
 from backend.app.llm.prompts import (
     APPLICATION_GENERATION_PROMPT,
     GROUNDING_EVALUATION_PROMPT,
@@ -51,6 +57,125 @@ def test_malformed_requirements_json_raises_parse_error():
         service.extract_jd_requirements("Bad output please.")
 
 
+def test_extract_jd_requirements_accepts_markdown_json_fence():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                ```json
+                [
+                  {
+                    "requirement_id": "req_data",
+                    "category": "hard_skill",
+                    "text": "Analyze product data",
+                    "importance": "high",
+                    "keywords": ["data", "analysis"]
+                  }
+                ]
+                ```
+                """
+            }
+        )
+    )
+
+    requirements = service.extract_jd_requirements("Need product data analysis.")
+
+    assert requirements[0].requirement_id == "req_data"
+
+
+def test_extract_jd_requirements_accepts_explanatory_text_around_json_fence():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                Here is the structured JSON:
+                ```json
+                [
+                  {
+                    "requirement_id": "req_sql",
+                    "category": "hard_skill",
+                    "text": "Write SQL queries",
+                    "importance": "high",
+                    "keywords": ["SQL"]
+                  }
+                ]
+                ```
+                """
+            }
+        )
+    )
+
+    requirements = service.extract_jd_requirements("Need SQL analysis.")
+
+    assert requirements[0].requirement_id == "req_sql"
+
+
+def test_extract_jd_requirements_accepts_requirements_object_wrapper():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                {
+                  "requirements": [
+                    {
+                      "requirement_id": "req_ops",
+                      "category": "responsibility",
+                      "text": "Coordinate cross-functional operations",
+                      "importance": "medium",
+                      "keywords": ["operations", "coordination"]
+                    }
+                  ]
+                }
+                """
+            }
+        )
+    )
+
+    requirements = service.extract_jd_requirements("Need operations coordination.")
+
+    assert requirements[0].requirement_id == "req_ops"
+
+
+def test_extract_jd_requirements_normalizes_common_model_schema_variants():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                {
+                  "requirements": [
+                    {
+                      "id": "python_backend",
+                      "type": "technical_skill",
+                      "description": "Python backend development",
+                      "priority": "required",
+                      "skills": ["Python", "Backend"]
+                    },
+                    "Strong communication with product stakeholders"
+                  ]
+                }
+                """
+            }
+        )
+    )
+
+    requirements = service.extract_jd_requirements("Need Python and communication.")
+
+    assert requirements[0] == JDRequirement(
+        requirement_id="python_backend",
+        category="hard_skill",
+        text="Python backend development",
+        importance="high",
+        keywords=["Python", "Backend"],
+    )
+    assert requirements[1] == JDRequirement(
+        requirement_id="req_2",
+        category="responsibility",
+        text="Strong communication with product stakeholders",
+        importance="medium",
+        keywords=[],
+    )
+
+
 def test_application_assets_json_parses_to_generated_assets():
     service = LLMService(
         client=FakeLLMClient(
@@ -98,6 +223,59 @@ def test_application_assets_json_parses_to_generated_assets():
     assert assets.cover_letter.evidence_ids == ["ev_python"]
 
 
+def test_application_assets_normalizes_common_model_schema_variants():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": """
+                {
+                  "generated_assets": {
+                    "summary": "The profile has relevant API evidence.",
+                    "bullets": [
+                      {
+                        "bullet": "Built FastAPI services for a project.",
+                        "requirement_id": "req_python",
+                        "evidence_id": "ev_python"
+                      }
+                    ],
+                    "cover_letter": "I am excited to apply because my API project matches the role.",
+                    "interview_questions": [
+                      "Explain the FastAPI project architecture."
+                    ]
+                  }
+                }
+                """
+            }
+        )
+    )
+
+    assets = service.generate_application_assets(
+        context={
+            "requirements": [_requirement().model_dump()],
+            "evidence": [_evidence().model_dump()],
+            "match_analysis": [
+                {
+                    "requirement_id": "req_python",
+                    "match_level": "strong",
+                    "rationale": "Evidence supports this requirement.",
+                    "evidence_ids": ["ev_python"],
+                }
+            ],
+            "evidence_ids": ["ev_python"],
+            "missing_requirement_ids": [],
+        }
+    )
+
+    assert assets.match_summary == "The profile has relevant API evidence."
+    assert assets.resume_bullets[0].text == "Built FastAPI services for a project."
+    assert assets.resume_bullets[0].target_requirement_ids == ["req_python"]
+    assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
+    assert assets.cover_letter.body == [
+        "I am excited to apply because my API project matches the role."
+    ]
+    assert assets.interview_prep[0].prep_suggestion == "Explain the FastAPI project architecture."
+
+
 def test_grounding_evaluation_json_parses_to_evaluation_report():
     service = LLMService(
         client=FakeLLMClient(
@@ -139,6 +317,49 @@ def test_grounding_evaluation_json_parses_to_evaluation_report():
     assert report.overall_status == "pass_with_warnings"
 
 
+def test_grounding_evaluation_normalizes_common_model_schema_variants():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "evaluate_claim_grounding": """
+                {
+                  "warnings": [
+                    {
+                      "type": "resume",
+                      "id": "bullet-1",
+                      "text": "Production-ready API.",
+                      "message": "Evidence does not mention production readiness.",
+                      "level": "warning"
+                    }
+                  ],
+                  "gaps": [
+                    {
+                      "id": "req_python",
+                      "message": "Need stronger production evidence.",
+                      "level": "warning"
+                    }
+                  ],
+                  "notes": ["Add project context."],
+                  "summary": "Review one warning.",
+                  "status": "warning"
+                }
+                """
+            }
+        )
+    )
+
+    report = service.evaluate_claim_grounding(
+        claims=["Production-ready API."],
+        evidence_items=[_evidence()],
+    )
+
+    assert report.grounding_warnings[0].asset_type == "resume_bullet"
+    assert report.grounding_warnings[0].asset_id == "bullet-1"
+    assert report.grounding_warnings[0].severity == "medium"
+    assert report.coverage_gaps[0].requirement_id == "req_python"
+    assert report.overall_status == "pass_with_warnings"
+
+
 def test_prompts_explicitly_forbid_fabricating_experience():
     prompts = "\n".join(
         [JD_REQUIREMENTS_PROMPT, APPLICATION_GENERATION_PROMPT, GROUNDING_EVALUATION_PROMPT]
@@ -146,6 +367,82 @@ def test_prompts_explicitly_forbid_fabricating_experience():
 
     assert "do not fabricate" in prompts
     assert "evidence" in prompts
+
+
+def test_openai_responses_client_posts_prompt_and_variables():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"output_text": "[{\"requirement_id\":\"req_python\"}]"})
+
+    client = OpenAIResponsesClient(
+        api_key="test-key",
+        model="gpt-test",
+        temperature=0.2,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    output = client.generate(
+        prompt_key="extract_jd_requirements",
+        prompt="Return JSON only.",
+        variables={"job_description": "Need Python API experience."},
+    )
+
+    assert output == "[{\"requirement_id\":\"req_python\"}]"
+    request = requests[0]
+    assert request.url == "https://api.openai.com/v1/responses"
+    assert request.headers["authorization"] == "Bearer test-key"
+    payload = request.read().decode()
+    assert '"model":"gpt-test"' in payload
+    assert '"temperature":0.2' in payload
+    assert "Return JSON only." in payload
+    assert "Need Python API experience." in payload
+
+
+def test_openai_compatible_chat_client_posts_to_deepseek_chat_completions():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "[{\"requirement_id\":\"req_deepseek\"}]"
+                        }
+                    }
+                ]
+            },
+        )
+
+    client = OpenAICompatibleChatClient(
+        api_key="deepseek-key",
+        model="deepseek-v4-flash",
+        base_url="https://api.deepseek.com",
+        temperature=0.3,
+        force_json_object=True,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    output = client.generate(
+        prompt_key="extract_jd_requirements",
+        prompt="Return JSON only.",
+        variables={"job_description": "Need data analysis experience."},
+    )
+
+    assert output == "[{\"requirement_id\":\"req_deepseek\"}]"
+    request = requests[0]
+    assert request.url == "https://api.deepseek.com/chat/completions"
+    assert request.headers["authorization"] == "Bearer deepseek-key"
+    payload = request.read().decode()
+    assert '"model":"deepseek-v4-flash"' in payload
+    assert '"temperature":0.3' in payload
+    assert '"response_format":{"type":"json_object"}' in payload
+    assert "Return JSON only." in payload
+    assert "Need data analysis experience." in payload
 
 
 def _requirement() -> JDRequirement:

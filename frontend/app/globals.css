@@ -14,6 +14,8 @@ body {
 }
 
 button,
+input,
+select,
 textarea {
   font: inherit;
 }
@@ -58,6 +60,18 @@ textarea {
   margin-bottom: 16px;
 }
 
+.llm-settings {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.75fr) minmax(220px, 1.25fr) minmax(170px, 1fr) minmax(220px, 1.25fr) minmax(120px, 0.6fr);
+  gap: 12px;
+  align-items: end;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
 .field {
   display: flex;
   min-width: 0;
@@ -79,7 +93,32 @@ textarea {
   outline: none;
 }
 
-.field textarea:focus {
+.field input,
+.field select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cfd5df;
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: #172033;
+  background: #ffffff;
+  outline: none;
+}
+
+.field input:disabled,
+.field select:disabled {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.compact-field {
+  gap: 6px;
+  font-size: 14px;
+}
+
+.field textarea:focus,
+.field input:focus,
+.field select:focus {
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
@@ -291,6 +330,10 @@ textarea {
 @media (max-width: 860px) {
   .input-grid,
   .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .llm-settings {
     grid-template-columns: 1fr;
   }
 

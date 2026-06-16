@@ -50,6 +50,22 @@ cd frontend
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
 ```
 
+### LLM Provider
+
+By default, the backend uses a deterministic local LLM client so demos and tests are stable. In that mode, different inputs can produce similar outputs because no live model provider is called.
+
+The web UI also supports user-provided model settings. Users can choose DeepSeek, OpenAI, or another OpenAI-compatible chat-completions endpoint, enter their own API key, and submit an analysis. Those settings are remembered in the user's browser after the first submission, but API keys are not hard-coded into project files.
+
+To use a real OpenAI model, export an API key before starting the backend:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4.1
+conda run -n carrer_agent uvicorn backend.app.main:app --reload
+```
+
+If a request sets `run_config.model` to a value other than `default`, that model overrides `OPENAI_MODEL`.
+
 Frontend checks:
 
 ```bash
@@ -104,7 +120,7 @@ This MVP currently uses a local development setup instead of Docker:
 - Backend: conda environment `carrer_agent` plus `requirements-dev.txt`
 - Frontend: local Node.js dependencies from `frontend/package-lock.json`
 - Vector store: in-memory test vector store for the MVP workflow
-- LLM: deterministic fake LLM client for stable local demos and tests
+- LLM: deterministic fake LLM client by default, or OpenAI Responses API when `OPENAI_API_KEY` is configured
 
 Docker is intentionally deferred until the project switches from fake/local services to external providers such as OpenAI and Chroma. At that point, a `docker-compose.yml` should define separate `backend`, `frontend`, and vector-store services with environment variables from `.env.example`.
 

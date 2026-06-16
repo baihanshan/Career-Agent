@@ -1,9 +1,10 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { JobDescriptionInput } from "../components/JobDescriptionInput";
+import { LlmSettings, type LlmSettingsValue } from "../components/LlmSettings";
 import { ProfileInput } from "../components/ProfileInput";
 import { ResultView } from "../components/ResultView";
 import { RunStatus } from "../components/RunStatus";
@@ -12,22 +13,49 @@ import type { AnalysisResult, AnalysisResponse } from "../lib/types";
 
 type UiStatus = "idle" | "loading" | "success" | "error";
 
+const LLM_SETTINGS_STORAGE_KEY = "careerpilot.llmSettings";
+
+const DEFAULT_LLM_SETTINGS: LlmSettingsValue = {
+  provider: "deepseek",
+  apiKey: "",
+  model: "deepseek-v4-flash",
+  baseUrl: "https://api.deepseek.com",
+  temperature: 0.2,
+};
+
 export default function Home() {
   const [profileMaterials, setProfileMaterials] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [llmSettings, setLlmSettings] = useState<LlmSettingsValue>(DEFAULT_LLM_SETTINGS);
   const [status, setStatus] = useState<UiStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
 
   const canSubmit = useMemo(
-    () => profileMaterials.trim().length > 0 && jobDescription.trim().length > 0,
-    [profileMaterials, jobDescription]
+    () =>
+      profileMaterials.trim().length > 0 &&
+      jobDescription.trim().length > 0 &&
+      (llmSettings.provider === "local" || llmSettings.apiKey.trim().length > 0),
+    [profileMaterials, jobDescription, llmSettings]
   );
+
+  useEffect(() => {
+    const storedSettings = window.localStorage.getItem(LLM_SETTINGS_STORAGE_KEY);
+    if (!storedSettings) {
+      return;
+    }
+
+    try {
+      setLlmSettings({ ...DEFAULT_LLM_SETTINGS, ...JSON.parse(storedSettings) });
+    } catch {
+      window.localStorage.removeItem(LLM_SETTINGS_STORAGE_KEY);
+    }
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit || status === "loading") {
-      setErrorMessage("请先填写个人材料和目标岗位 JD。");
+      setErrorMessage("请先填写个人材料、目标岗位 JD 和模型 API Key。");
       setStatus("error");
       return;
     }
@@ -37,6 +65,11 @@ export default function Home() {
     setResult(null);
 
     try {
+      const settingsToSave = {
+        ...llmSettings,
+        apiKey: llmSettings.provider === "local" ? "" : llmSettings.apiKey,
+      };
+      window.localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(settingsToSave));
       const response = await runAnalysis({
         profile_documents: [
           {
@@ -46,6 +79,19 @@ export default function Home() {
           },
         ],
         job_description: jobDescription,
+        run_config: {
+          provider: llmSettings.provider,
+          model: llmSettings.model.trim() || "default",
+          temperature: llmSettings.temperature,
+          top_k: 5,
+          api_key:
+            llmSettings.provider === "local" ? undefined : llmSettings.apiKey.trim(),
+          base_url:
+            llmSettings.provider === "deepseek" ||
+            llmSettings.provider === "openai_compatible"
+              ? llmSettings.baseUrl.trim()
+              : undefined,
+        },
       });
       handleAnalysisResponse(response);
     } catch {
@@ -88,13 +134,14 @@ export default function Home() {
       </section>
 
       <form className="input-grid" onSubmit={handleSubmit}>
+        <LlmSettings value={llmSettings} onChange={setLlmSettings} />
         <ProfileInput value={profileMaterials} onChange={setProfileMaterials} />
         <JobDescriptionInput value={jobDescription} onChange={setJobDescription} />
         <div className="form-actions">
           <button type="submit" disabled={!canSubmit || status === "loading"}>
             {status === "loading" ? "分析中..." : "开始分析"}
           </button>
-          <span>空输入时提交按钮不可用。</span>
+          <span>设置会在首次提交后保存在本机浏览器。</span>
         </div>
       </form>
 

@@ -34,13 +34,18 @@ def evaluate_generated_assets(
     specificity_notes = _check_specificity(assets.resume_bullets)
 
     if llm_service is not None:
-        semantic_report = llm_service.evaluate_claim_grounding(
-            claims=_claims_from_assets(assets),
-            evidence_items=evidence_items,
-        )
-        grounding_warnings.extend(semantic_report.grounding_warnings)
-        coverage_gaps.extend(semantic_report.coverage_gaps)
-        specificity_notes.extend(semantic_report.specificity_notes)
+        try:
+            semantic_report = llm_service.evaluate_claim_grounding(
+                claims=_claims_from_assets(assets),
+                evidence_items=evidence_items,
+            )
+            grounding_warnings.extend(semantic_report.grounding_warnings)
+            coverage_gaps.extend(semantic_report.coverage_gaps)
+            specificity_notes.extend(semantic_report.specificity_notes)
+        except Exception:
+            specificity_notes.append(
+                "语义证据评估未完成；已保留规则评估结果，请人工复核生成内容。"
+            )
 
     overall_status = _overall_status(
         grounding_warnings=grounding_warnings,

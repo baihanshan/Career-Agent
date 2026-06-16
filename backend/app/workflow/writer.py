@@ -64,6 +64,7 @@ def _validate_and_downgrade_assets(
             bullet=bullet,
             evidence_ids=evidence_ids,
             missing_requirement_ids=missing_requirement_ids,
+            context=context,
         )
         for bullet in assets.resume_bullets
     ]
@@ -74,12 +75,18 @@ def _validate_and_downgrade_bullet(
     bullet: ResumeBullet,
     evidence_ids: set[str],
     missing_requirement_ids: set[str],
+    context: Mapping[str, Any],
 ) -> ResumeBullet:
-    unknown_evidence_ids = [item for item in bullet.evidence_ids if item not in evidence_ids]
-    if unknown_evidence_ids:
-        raise WriterOutputError(
-            f"Resume bullet references unknown evidence ids: {', '.join(unknown_evidence_ids)}"
+    known_bullet_evidence_ids = [
+        item for item in bullet.evidence_ids if item in evidence_ids
+    ]
+    if known_bullet_evidence_ids != bullet.evidence_ids:
+        known_bullet_evidence_ids = known_bullet_evidence_ids or _fallback_evidence_ids(
+            bullet.target_requirement_ids,
+            context,
+            evidence_ids,
         )
+        bullet = bullet.model_copy(update={"evidence_ids": known_bullet_evidence_ids})
 
     targets_missing_requirement = any(
         requirement_id in missing_requirement_ids
@@ -89,8 +96,21 @@ def _validate_and_downgrade_bullet(
         return bullet.model_copy(update={"risk_level": "high"})
 
     if not bullet.evidence_ids and bullet.risk_level != "high":
-        raise WriterOutputError(
-            "Resume bullets without evidence must be marked high risk."
-        )
+        return bullet.model_copy(update={"risk_level": "high"})
 
     return bullet
+
+
+def _fallback_evidence_ids(
+    requirement_ids: list[str],
+    context: Mapping[str, Any],
+    known_evidence_ids: set[str],
+) -> list[str]:
+    for match_item in context["match_analysis"]:
+        if match_item["requirement_id"] in requirement_ids:
+            return [
+                evidence_id
+                for evidence_id in match_item["evidence_ids"]
+                if evidence_id in known_evidence_ids
+            ]
+    return []

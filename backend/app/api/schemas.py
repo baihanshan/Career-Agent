@@ -21,12 +21,24 @@ AssetType = Literal["resume_bullet", "cover_letter", "match_summary", "interview
 Severity = Literal["low", "medium", "high"]
 OverallStatus = Literal["pass", "pass_with_warnings", "fail"]
 AnalysisStatus = Literal["completed", "failed"]
+LLMProvider = Literal["local", "openai", "deepseek", "openai_compatible"]
 
 
 class RunConfig(BaseModel):
+    provider: LLMProvider = "local"
     model: str = "default"
     temperature: float = Field(default=0.2, ge=0, le=2)
     top_k: int = Field(default=5, ge=1, le=20)
+    api_key: str | None = None
+    base_url: str | None = None
+
+    @field_validator("api_key", "base_url")
+    @classmethod
+    def strip_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class JDRequirement(BaseModel):

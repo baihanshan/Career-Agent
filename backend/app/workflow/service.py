@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Mapping
 
-from backend.app.api.schemas import AnalysisRequest
-from backend.app.llm.client import LLMService
+from backend.app.api.schemas import AnalysisRequest, RunConfig
+from backend.app.llm.client import (
+    LLMService,
+    OpenAICompatibleChatClient,
+    OpenAIResponsesClient,
+)
 from backend.app.retrieval.embeddings import FakeEmbeddingClient
 from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
@@ -13,17 +18,58 @@ from backend.app.workflow.nodes import WorkflowServices
 
 
 def run_analysis(request: AnalysisRequest) -> dict:
-    response = run_workflow(request=request, services=_default_services())
+    response = run_workflow(request=request, services=_default_services(request.run_config))
     return response.model_dump(mode="json")
 
 
-def _default_services() -> WorkflowServices:
+def _default_services(run_config: RunConfig) -> WorkflowServices:
     return WorkflowServices(
         retrieval_service=RetrievalService(
             embedding_client=FakeEmbeddingClient(),
             vector_store=InMemoryVectorStore(),
         ),
-        llm_service=LLMService(client=_DeterministicWorkflowLLMClient()),
+        llm_service=LLMService(client=_default_llm_client(run_config)),
+    )
+
+
+def _default_llm_client(run_config: RunConfig):
+    if run_config.provider == "openai" and run_config.api_key:
+        model = run_config.model if run_config.model != "default" else "gpt-4.1"
+        return OpenAIResponsesClient(
+            api_key=run_config.api_key,
+            model=model,
+            temperature=run_config.temperature,
+        )
+
+    if run_config.provider == "deepseek" and run_config.api_key:
+        model = run_config.model if run_config.model != "default" else "deepseek-v4-flash"
+        return OpenAICompatibleChatClient(
+            api_key=run_config.api_key,
+            model=model,
+            base_url=run_config.base_url or "https://api.deepseek.com",
+            temperature=run_config.temperature,
+            force_json_object=True,
+        )
+
+    if run_config.provider == "openai_compatible" and run_config.api_key:
+        model = run_config.model if run_config.model != "default" else "default"
+        return OpenAICompatibleChatClient(
+            api_key=run_config.api_key,
+            model=model,
+            base_url=run_config.base_url or "https://api.openai.com/v1",
+            temperature=run_config.temperature,
+        )
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return _DeterministicWorkflowLLMClient()
+
+    requested_model = run_config.model if run_config.model != "default" else ""
+    model = requested_model or os.getenv("OPENAI_MODEL", "").strip() or "gpt-4.1"
+    return OpenAIResponsesClient(
+        api_key=api_key,
+        model=model,
+        temperature=run_config.temperature,
     )
 
 

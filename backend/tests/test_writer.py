@@ -1,12 +1,9 @@
 import json
 
-import pytest
-
 from backend.app.api.schemas import EvidenceItem, JDRequirement, MatchItem
 from backend.app.llm.client import FakeLLMClient, LLMService
 from backend.app.llm.prompts import APPLICATION_GENERATION_PROMPT
 from backend.app.workflow.writer import (
-    WriterOutputError,
     build_writer_context,
     write_application,
 )
@@ -45,20 +42,45 @@ def test_write_application_returns_generated_assets_from_fake_llm():
     assert fake_client.calls[0]["prompt_key"] == "generate_application_assets"
 
 
-def test_resume_bullet_requires_evidence_or_high_risk():
+def test_missing_evidence_ids_are_replaced_with_matching_evidence():
     service = LLMService(
         client=FakeLLMClient(
             responses={"generate_application_assets": _assets_json(evidence_ids=[], risk_level="low")}
         )
     )
 
-    with pytest.raises(WriterOutputError):
-        write_application(
-            requirements=[_requirement("req_python")],
-            evidence_items=[_evidence("ev_python", "req_python")],
-            match_items=[_match("req_python", "strong", ["ev_python"])],
-            llm_service=service,
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+        match_items=[_match("req_python", "strong", ["ev_python"])],
+        llm_service=service,
+    )
+
+    assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
+    assert assets.resume_bullets[0].risk_level == "low"
+
+
+def test_unknown_evidence_ids_are_replaced_with_matching_evidence():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": _assets_json(
+                    evidence_ids=["made_up_evidence_id"],
+                    risk_level="low",
+                )
+            }
         )
+    )
+
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+        match_items=[_match("req_python", "strong", ["ev_python"])],
+        llm_service=service,
+    )
+
+    assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
+    assert assets.resume_bullets[0].risk_level == "low"
 
 
 def test_missing_requirement_bullet_is_downgraded_to_high_risk():

@@ -2,12 +2,13 @@ import json
 
 from backend.app.api.schemas import AnalysisRequest
 from backend.app.documents.models import ProfileDocument
-from backend.app.llm.client import LLMService
+from backend.app.llm.client import LLMService, OpenAICompatibleChatClient, OpenAIResponsesClient
 from backend.app.retrieval.embeddings import FakeEmbeddingClient
 from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import WORKFLOW_NODE_ORDER, build_analysis_graph, run_workflow
 from backend.app.workflow.nodes import WorkflowServices
+from backend.app.workflow.service import _default_services
 
 
 def test_workflow_graph_defines_expected_node_order():
@@ -79,11 +80,63 @@ def test_run_analysis_service_returns_chinese_generated_content():
     assert all(_contains_chinese(text) for text in generated_texts)
 
 
+def test_default_services_use_openai_client_when_api_key_is_configured(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    request = _request(model="gpt-test", temperature=0.4)
+
+    services = _default_services(request.run_config)
+
+    assert isinstance(services.llm_service.client, OpenAIResponsesClient)
+    assert services.llm_service.client.model == "gpt-test"
+    assert services.llm_service.client.temperature == 0.4
+
+
+def test_default_services_use_deepseek_client_from_request_config(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "env-openai-key")
+    request = _request(
+        model="deepseek-v4-flash",
+        temperature=0.5,
+        provider="deepseek",
+        api_key="user-deepseek-key",
+    )
+
+    services = _default_services(request.run_config)
+
+    assert isinstance(services.llm_service.client, OpenAICompatibleChatClient)
+    assert services.llm_service.client.api_key == "user-deepseek-key"
+    assert services.llm_service.client.model == "deepseek-v4-flash"
+    assert services.llm_service.client.base_url == "https://api.deepseek.com"
+    assert services.llm_service.client.temperature == 0.5
+
+
+def test_default_services_keep_deterministic_client_without_api_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    services = _default_services(_request().run_config)
+
+    assert services.llm_service.client.__class__.__name__ == "_DeterministicWorkflowLLMClient"
+
+
 def _contains_chinese(text: str) -> bool:
     return any("\u4e00" <= character <= "\u9fff" for character in text)
 
 
-def _request() -> AnalysisRequest:
+def _request(
+    model: str = "default",
+    temperature: float = 0.2,
+    provider: str = "local",
+    api_key: str | None = None,
+) -> AnalysisRequest:
+    run_config = {
+        "provider": provider,
+        "model": model,
+        "temperature": temperature,
+        "top_k": 5,
+    }
+    if api_key is not None:
+        run_config["api_key"] = api_key
+
     return AnalysisRequest(
         profile_documents=[
             ProfileDocument(
@@ -94,6 +147,7 @@ def _request() -> AnalysisRequest:
             )
         ],
         job_description="We need Python API experience.",
+        run_config=run_config,
     )
 
 
