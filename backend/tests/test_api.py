@@ -25,6 +25,22 @@ def test_health_returns_ok():
     assert response.json() == {"status": "ok"}
 
 
+def test_allows_local_frontend_cors_preflight():
+    client = TestClient(create_app())
+
+    response = client.options(
+        "/analysis",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
 def test_analysis_rejects_empty_profile_documents():
     client = TestClient(create_app())
     payload = valid_payload()

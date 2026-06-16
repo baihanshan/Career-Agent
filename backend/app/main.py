@@ -4,6 +4,7 @@ try:
     from fastapi import FastAPI
     from fastapi.exceptions import RequestValidationError
     from fastapi.responses import JSONResponse
+    from fastapi.middleware.cors import CORSMiddleware
 except ImportError:  # pragma: no cover - allows structure checks before deps install
     FastAPI = None
 
@@ -16,6 +17,16 @@ def create_app():
     from backend.app.core.errors import AppError, ValidationErrorCode
 
     app = FastAPI(title="CareerPilot Agent")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request, exc):
