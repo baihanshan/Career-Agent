@@ -70,7 +70,7 @@ def _check_resume_bullet_grounding(
                     asset_type="resume_bullet",
                     asset_id=asset_id,
                     claim=bullet.text,
-                    reason="Resume bullet does not cite any evidence ids.",
+                    reason="该简历要点没有引用任何证据 id。",
                     severity="high",
                 )
             )
@@ -83,7 +83,7 @@ def _check_resume_bullet_grounding(
                     asset_type="resume_bullet",
                     asset_id=asset_id,
                     claim=bullet.text,
-                    reason=f"Resume bullet cites unknown evidence ids: {', '.join(unknown_ids)}.",
+                    reason=f"该简历要点引用了未知的证据 id：{', '.join(unknown_ids)}。",
                     severity="high",
                 )
             )
@@ -118,7 +118,7 @@ def _check_number_grounding(
             asset_type="resume_bullet",
             asset_id=asset_id,
             claim=claim,
-            reason=f"Number {number} does not appear in the cited evidence.",
+            reason=f"数字 {number} 没有出现在引用的证据中。",
             severity="high",
         )
         for number in unsupported_numbers
@@ -137,7 +137,7 @@ def _check_coverage(
     return [
         CoverageGap(
             requirement_id=requirement.requirement_id,
-            reason="High-importance requirement is not covered by generated resume bullets.",
+            reason="高优先级岗位要求没有被生成的简历要点覆盖。",
             severity="high",
         )
         for requirement in requirements
@@ -150,9 +150,10 @@ def _check_specificity(resume_bullets: list[ResumeBullet]) -> list[str]:
     notes: list[str] = []
     for index, bullet in enumerate(resume_bullets, start=1):
         words = re.findall(r"[A-Za-z0-9]+", bullet.text)
-        if len(words) < 6:
+        chinese_characters = re.findall(r"[\u4e00-\u9fff]", bullet.text)
+        if len(words) < 6 and len(chinese_characters) < 18:
             notes.append(
-                f"Resume bullet {index} is too generic; add concrete project context, action, or evidence."
+                f"第 {index} 条简历要点过于笼统，建议补充具体项目背景、行动或证据。"
             )
     return notes
 
@@ -185,7 +186,7 @@ def _overall_status(
 
 def _risk_summary(overall_status: str) -> str:
     if overall_status == "fail":
-        return "High-risk grounding issues found."
+        return "发现高风险证据支撑问题。"
     if overall_status == "pass_with_warnings":
-        return "Review warnings before using generated content."
-    return "No major grounding risks found."
+        return "使用生成内容前，请先检查风险提示。"
+    return "未发现明显的证据支撑风险。"

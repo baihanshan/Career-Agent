@@ -40,4 +40,21 @@ if (missingCopy.length > 0) {
   process.exit(1);
 }
 
+const resultView = readFileSync(join(process.cwd(), "components/ResultView.tsx"), "utf8");
+const riskWarnings = readFileSync(join(process.cwd(), "components/RiskWarnings.tsx"), "utf8");
+const requiredResultLabels = ["低风险", "中风险", "高风险"];
+const missingResultLabels = requiredResultLabels.filter((copy) => !resultView.includes(copy));
+const requiredWarningLabels = ["低严重程度", "中严重程度", "高严重程度"];
+const missingWarningLabels = requiredWarningLabels.filter((copy) => !riskWarnings.includes(copy));
+
+if (missingResultLabels.length > 0 || missingWarningLabels.length > 0) {
+  console.error(
+    `Missing Chinese enum labels: ${[
+      ...missingResultLabels,
+      ...missingWarningLabels,
+    ].join(", ")}`
+  );
+  process.exit(1);
+}
+
 console.log("Frontend structure and Chinese UI copy look ready.");

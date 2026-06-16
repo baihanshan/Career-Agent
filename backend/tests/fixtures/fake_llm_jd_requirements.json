@@ -2,28 +2,28 @@
   {
     "requirement_id": "req_python_api",
     "category": "hard_skill",
-    "text": "Build Python APIs for AI product workflows",
+    "text": "为 AI 产品工作流构建 Python API",
     "importance": "high",
     "keywords": ["Python", "API", "FastAPI"]
   },
   {
     "requirement_id": "req_rag",
     "category": "responsibility",
-    "text": "Implement retrieval augmented generation over user-provided documents",
+    "text": "基于用户提供的文档实现检索增强生成",
     "importance": "high",
     "keywords": ["retrieval", "evidence", "documents"]
   },
   {
     "requirement_id": "req_collaboration",
     "category": "soft_skill",
-    "text": "Collaborate with product and frontend partners",
+    "text": "与产品和前端伙伴协作",
     "importance": "medium",
     "keywords": ["collaborate", "frontend", "product"]
   },
   {
     "requirement_id": "req_langgraph",
     "category": "nice_to_have",
-    "text": "Experience with LangGraph or deterministic agent workflow orchestration",
+    "text": "具备 LangGraph 或确定性 agent 工作流编排经验",
     "importance": "low",
     "keywords": ["LangGraph", "workflow", "orchestration"]
   }

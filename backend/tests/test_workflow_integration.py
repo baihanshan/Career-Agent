@@ -57,6 +57,32 @@ def test_run_analysis_service_uses_workflow_result():
     assert response["result"]["generated_assets"]["resume_bullets"][0]["evidence_ids"]
 
 
+def test_run_analysis_service_returns_chinese_generated_content():
+    from backend.app.workflow.service import run_analysis
+
+    response = run_analysis(_request())
+
+    assets = response["result"]["generated_assets"]
+    report = response["result"]["evaluation_report"]
+    generated_texts = [
+        assets["match_summary"],
+        assets["resume_bullets"][0]["text"],
+        assets["cover_letter"]["opening"],
+        assets["cover_letter"]["body"][0],
+        assets["cover_letter"]["closing"],
+        assets["interview_prep"][0]["topic"],
+        assets["interview_prep"][0]["why_it_matters"],
+        assets["interview_prep"][0]["prep_suggestion"],
+        report["risk_summary"],
+    ]
+
+    assert all(_contains_chinese(text) for text in generated_texts)
+
+
+def _contains_chinese(text: str) -> bool:
+    return any("\u4e00" <= character <= "\u9fff" for character in text)
+
+
 def _request() -> AnalysisRequest:
     return AnalysisRequest(
         profile_documents=[

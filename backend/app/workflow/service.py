@@ -39,7 +39,7 @@ class _DeterministicWorkflowLLMClient:
                     "grounding_warnings": [],
                     "coverage_gaps": [],
                     "specificity_notes": [],
-                    "risk_summary": "No major grounding risks found.",
+                    "risk_summary": "未发现明显的证据支撑风险。",
                     "overall_status": "pass",
                 }
             )
@@ -52,14 +52,14 @@ def _requirement_from_jd(job_description: str) -> dict[str, Any]:
         return {
             "requirement_id": "req_python_api",
             "category": "hard_skill",
-            "text": "Python API experience",
+            "text": "具备 Python API 开发经验",
             "importance": "high",
             "keywords": ["Python", "API"],
         }
     return {
         "requirement_id": "req_general",
         "category": "responsibility",
-        "text": job_description.strip()[:120] or "General role requirement",
+        "text": job_description.strip()[:120] or "通用岗位要求",
         "importance": "medium",
         "keywords": [],
     }
@@ -74,27 +74,27 @@ def _assets_from_context(context: Mapping[str, Any]) -> dict[str, Any]:
     bullet_evidence_ids = [first_evidence_id] if first_evidence_id else []
 
     return {
-        "match_summary": "Generated summary based on retrieved profile evidence.",
+        "match_summary": "根据已检索到的个人材料证据，候选人与目标岗位存在可解释的匹配点。",
         "resume_bullets": [
             {
-                "text": "Built relevant project work supported by cited profile evidence.",
+                "text": "基于个人材料中的项目证据，完成了与目标岗位相关的技术实践，并可追溯到引用证据。",
                 "target_requirement_ids": [first_requirement_id],
                 "evidence_ids": bullet_evidence_ids,
                 "risk_level": bullet_risk,
             }
         ],
         "cover_letter": {
-            "opening": "I am excited to apply for this role.",
-            "body": ["My background aligns with the role based on the cited evidence."],
-            "closing": "Thank you for your consideration.",
+            "opening": "您好，我很高兴申请这个岗位。",
+            "body": ["根据已引用的个人材料证据，我的项目经历与该岗位的核心要求具有较强相关性。"],
+            "closing": "感谢您的时间与考虑，期待进一步交流。",
             "evidence_ids": bullet_evidence_ids,
         },
         "interview_prep": [
             {
-                "topic": "Evidence-backed project discussion",
-                "why_it_matters": "This connects your background to the target role.",
+                "topic": "基于证据的项目经历说明",
+                "why_it_matters": "这个话题可以把你的个人经历和目标岗位要求直接连接起来。",
                 "supporting_evidence_ids": bullet_evidence_ids,
-                "prep_suggestion": "Prepare a concise walkthrough grounded in the cited evidence.",
+                "prep_suggestion": "准备一段简洁的项目 walkthrough，并明确说明每个能力点对应的材料证据。",
             }
         ],
     }

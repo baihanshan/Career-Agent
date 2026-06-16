@@ -2,6 +2,6 @@
   "grounding_warnings": [],
   "coverage_gaps": [],
   "specificity_notes": [],
-  "risk_summary": "No major grounding risks found in the fixture output.",
+  "risk_summary": "fixture 输出中未发现明显的证据支撑风险。",
   "overall_status": "pass"
 }

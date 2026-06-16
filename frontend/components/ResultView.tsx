@@ -7,6 +7,12 @@ interface ResultViewProps {
   result: AnalysisResult;
 }
 
+const riskLevelLabels = {
+  low: "低风险",
+  medium: "中风险",
+  high: "高风险",
+} as const;
+
 export function ResultView({ result }: ResultViewProps) {
   const assets = result.generated_assets;
 
@@ -31,7 +37,7 @@ export function ResultView({ result }: ResultViewProps) {
                     </span>
                   ))}
                   <span className={`chip risk-${bullet.risk_level}`}>
-                    风险：{bullet.risk_level}
+                    风险：{riskLevelLabels[bullet.risk_level]}
                   </span>
                 </div>
               </article>

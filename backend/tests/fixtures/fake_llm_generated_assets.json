@@ -1,34 +1,34 @@
 {
-  "match_summary": "The candidate has strong evidence for Python API work, retrieval-oriented AI workflows, and a portfolio project that demonstrates deterministic agent orchestration.",
+  "match_summary": "候选人在 Python API、检索增强 AI 工作流和确定性 agent 编排方面都有较强证据支撑，适合展示为目标岗位的核心匹配点。",
   "resume_bullets": [
     {
-      "text": "Built a Python FastAPI workflow for evidence-grounded career analysis, including document chunking, retrieval, match scoring, and grounding evaluation.",
+      "text": "构建了基于 Python FastAPI 的证据驱动职业分析工作流，覆盖文档切片、检索、匹配评分和 grounding 评估。",
       "target_requirement_ids": ["req_python_api", "req_rag"],
       "evidence_ids": ["req_python_api:evidence:1"],
       "risk_level": "low"
     },
     {
-      "text": "Created a GitHub portfolio project demonstrating LangGraph-style orchestration for parsing materials, retrieving evidence, and flagging unsupported claims.",
+      "text": "完成了一个 GitHub 作品集项目，展示了 LangGraph 风格的流程编排、材料解析、证据检索和 unsupported claim 风险提示。",
       "target_requirement_ids": ["req_langgraph"],
       "evidence_ids": ["req_langgraph:evidence:1"],
       "risk_level": "low"
     }
   ],
   "cover_letter": {
-    "opening": "I am excited to apply for this AI application engineer role.",
+    "opening": "您好，我很高兴申请这个 AI 应用工程师岗位。",
     "body": [
-      "My project work aligns with your need for Python APIs and evidence-grounded AI workflows.",
-      "I have built retrieval and evaluation components that keep generated career content tied to user-provided evidence."
+      "我的项目经历与岗位中对 Python API 和证据驱动 AI 工作流的要求高度相关。",
+      "我曾实现检索和评估组件，用于确保生成的求职内容能够关联到用户提供的材料证据。"
     ],
-    "closing": "Thank you for your consideration.",
+    "closing": "感谢您的时间与考虑，期待进一步交流。",
     "evidence_ids": ["req_python_api:evidence:1", "req_rag:evidence:1"]
   },
   "interview_prep": [
     {
-      "topic": "Evidence-grounded workflow project",
-      "why_it_matters": "The role asks for Python APIs, retrieval, and deterministic AI workflow orchestration.",
+      "topic": "证据驱动的工作流项目",
+      "why_it_matters": "该岗位关注 Python API、检索能力和确定性 AI 工作流编排。",
       "supporting_evidence_ids": ["req_python_api:evidence:1"],
-      "prep_suggestion": "Prepare a concise walkthrough of the FastAPI endpoint, retrieval service, writer, evaluator, and LangGraph workflow."
+      "prep_suggestion": "准备一段简洁的项目讲解，说明 FastAPI endpoint、检索服务、writer、evaluator 和 LangGraph workflow 如何协作。"
     }
   ]
 }

@@ -93,8 +93,29 @@ def test_generic_resume_bullet_produces_specificity_note():
     )
 
     assert report.specificity_notes == [
-        "Resume bullet 1 is too generic; add concrete project context, action, or evidence."
+        "第 1 条简历要点过于笼统，建议补充具体项目背景、行动或证据。"
     ]
+
+
+def test_detailed_chinese_resume_bullet_is_specific_enough():
+    assets = _assets(
+        resume_bullets=[
+            ResumeBullet(
+                text="基于个人材料中的项目证据，完成了与目标岗位相关的技术实践，并可追溯到引用证据。",
+                target_requirement_ids=["req_python"],
+                evidence_ids=["ev_python"],
+                risk_level="low",
+            )
+        ]
+    )
+
+    report = evaluate_generated_assets(
+        assets=assets,
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+    )
+
+    assert report.specificity_notes == []
 
 
 def test_high_severity_warning_sets_overall_status_to_fail():
@@ -116,7 +137,7 @@ def test_high_severity_warning_sets_overall_status_to_fail():
     )
 
     assert report.overall_status == "fail"
-    assert report.risk_summary == "High-risk grounding issues found."
+    assert report.risk_summary == "发现高风险证据支撑问题。"
 
 
 def test_fake_llm_semantic_grounding_warnings_are_included():
