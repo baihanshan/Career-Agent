@@ -95,6 +95,19 @@ export interface ProcessingWarning {
   source?: string | null;
 }
 
+export interface AgentToolResult {
+  tool_name: string;
+  arguments_summary: string;
+  return_summary: string;
+  status: "success" | "error";
+}
+
+export interface AgentTrace {
+  agent_name: string;
+  steps: AgentToolResult[];
+  final_decision_summary: string;
+}
+
 export interface EvaluationReport {
   grounding_warnings: GroundingWarning[];
   coverage_gaps: CoverageGap[];
@@ -109,6 +122,7 @@ export interface AnalysisResult {
   generated_assets: GeneratedAssets;
   evaluation_report: EvaluationReport;
   processing_warnings?: ProcessingWarning[];
+  agent_traces?: AgentTrace[];
 }
 
 export interface AnalysisRequest {

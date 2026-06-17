@@ -19,6 +19,7 @@ MatchLevel = Literal["strong", "partial", "weak", "missing"]
 RiskLevel = Literal["low", "medium", "high"]
 AssetType = Literal["resume_bullet", "cover_letter", "match_summary", "interview_prep"]
 Severity = Literal["low", "medium", "high"]
+ToolStatus = Literal["success", "error"]
 OverallStatus = Literal["pass", "pass_with_warnings", "fail"]
 AnalysisStatus = Literal["completed", "failed"]
 LLMProvider = Literal["local", "openai", "deepseek", "openai_compatible"]
@@ -107,20 +108,47 @@ class ResumeSection(BaseModel):
         return stripped
 
 
-class AgentTrace(BaseModel):
-    agent_name: str
+class AgentToolResult(BaseModel):
     tool_name: str
     arguments_summary: str
-    observation_summary: str
+    return_summary: str
+    status: ToolStatus
+
+    @field_validator("tool_name", "arguments_summary", "return_summary", "status")
+    @classmethod
+    def require_non_empty_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Field must not be empty.")
+        return stripped
+
+
+class AgentTrace(BaseModel):
+    agent_name: str
+    steps: list[AgentToolResult] = Field(default_factory=list)
     final_decision_summary: str
 
-    @field_validator(
-        "agent_name",
-        "tool_name",
-        "arguments_summary",
-        "observation_summary",
-        "final_decision_summary",
-    )
+    @model_validator(mode="before")
+    @classmethod
+    def convert_legacy_single_step_shape(cls, data):
+        if not isinstance(data, dict):
+            return data
+        if "steps" in data or "tool_name" not in data:
+            return data
+        return {
+            "agent_name": data.get("agent_name"),
+            "steps": [
+                {
+                    "tool_name": data.get("tool_name"),
+                    "arguments_summary": data.get("arguments_summary"),
+                    "return_summary": data.get("observation_summary"),
+                    "status": "success",
+                }
+            ],
+            "final_decision_summary": data.get("final_decision_summary"),
+        }
+
+    @field_validator("agent_name", "final_decision_summary")
     @classmethod
     def require_non_empty_text(cls, value: str) -> str:
         stripped = value.strip()

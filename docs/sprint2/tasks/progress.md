@@ -63,7 +63,7 @@ Sprint 2 目标是升级为：
 - [x] `data-models-state.md`：Sprint 2 schema、workflow state、trace model
 - [x] `resume-structure.md`：结构化简历 section 与 chunk metadata
 - [x] `embedding-chroma.md`：BGE embedding、Chroma store、collection lifecycle
-- [ ] `agent-tools-trace.md`：ReAct 工具集与 trace 记录
+- [x] `agent-tools-trace.md`：ReAct 工具集与 trace 记录
 - [ ] `jd-analyst-agent.md`：JD 结构化分析节点
 - [ ] `resume-evidence-agent.md`：Resume Evidence ReAct Agent
 - [ ] `match-strategist-agent.md`：匹配策略与排序

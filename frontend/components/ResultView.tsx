@@ -60,8 +60,34 @@ export function ResultView({ result }: ResultViewProps) {
 
       <aside className="result-side">
         <ProcessingWarnings warnings={result.processing_warnings ?? []} />
+        <AgentTraceDetails traces={result.agent_traces ?? []} />
         <RiskWarnings report={result.evaluation_report} />
       </aside>
     </div>
+  );
+}
+
+function AgentTraceDetails({ traces }: { traces: AnalysisResult["agent_traces"] }) {
+  if (!traces || traces.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className="panel">
+      <summary>分析过程详情</summary>
+      <div className="prep-list">
+        {traces.map((trace) => (
+          <article className="prep-item" key={`${trace.agent_name}-${trace.final_decision_summary}`}>
+            <h3>{trace.agent_name}</h3>
+            {trace.steps.map((step) => (
+              <p key={`${step.tool_name}-${step.arguments_summary}`}>
+                {step.tool_name}：{step.arguments_summary} → {step.return_summary}
+              </p>
+            ))}
+            <strong>{trace.final_decision_summary}</strong>
+          </article>
+        ))}
+      </div>
+    </details>
   );
 }

@@ -178,6 +178,9 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
             "processing_warnings": [
                 warning.model_dump(mode="json") for warning in state.processing_warnings
             ],
+            "agent_traces": [
+                trace.model_dump(mode="json") for trace in state.agent_traces
+            ],
         },
     )
 
