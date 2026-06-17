@@ -85,6 +85,7 @@ export interface GroundingWarning {
 
 export interface CoverageGap {
   requirement_id: string;
+  requirement_text?: string | null;
   reason: string;
   severity: Severity;
 }

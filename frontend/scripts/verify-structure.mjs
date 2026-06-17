@@ -55,4 +55,9 @@ if (missingResultLabels.length > 0 || missingWarningLabels.length > 0) {
   process.exit(1);
 }
 
+if (riskWarnings.includes("未覆盖要求：{gap.requirement_id}")) {
+  console.error("Risk warnings must show user-readable requirement text, not internal IDs.");
+  process.exit(1);
+}
+
 console.log("Frontend structure and Chinese UI copy look ready.");

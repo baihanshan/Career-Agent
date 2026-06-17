@@ -6,6 +6,11 @@ Do not wrap the JSON in markdown fences.
 Do not include explanations before or after the JSON.
 Do not fabricate requirements that are not present in the job description.
 Each item in "requirements" should include requirement_id, category, text, importance, and keywords.
+Use requirement_id only as an internal stable identifier; never put internal IDs in text.
+The text field must be user-readable JD wording or a concise user-readable summary of the original JD requirement.
+High importance means explicit must-have, required, mandatory, core responsibility, or repeated/high-impact requirement.
+Medium importance means relevant responsibility or skill that supports success but is not clearly mandatory.
+Low importance means optional, preferred, bonus, nice-to-have, or weakly emphasized requirement.
 """.strip()
 
 

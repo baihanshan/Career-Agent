@@ -40,7 +40,12 @@ def evaluate_generated_assets(
                 evidence_items=evidence_items,
             )
             grounding_warnings.extend(semantic_report.grounding_warnings)
-            coverage_gaps.extend(semantic_report.coverage_gaps)
+            coverage_gaps.extend(
+                _with_requirement_texts(
+                    coverage_gaps=semantic_report.coverage_gaps,
+                    requirements=requirements,
+                )
+            )
             specificity_notes.extend(semantic_report.specificity_notes)
         except Exception:
             specificity_notes.append(
@@ -142,12 +147,26 @@ def _check_coverage(
     return [
         CoverageGap(
             requirement_id=requirement.requirement_id,
+            requirement_text=requirement.text,
             reason="高优先级岗位要求没有被生成的简历要点覆盖。",
             severity="high",
         )
         for requirement in requirements
         if requirement.importance == "high"
         and requirement.requirement_id not in covered_requirement_ids
+    ]
+
+
+def _with_requirement_texts(
+    coverage_gaps: list[CoverageGap],
+    requirements: list[JDRequirement],
+) -> list[CoverageGap]:
+    text_by_id = {item.requirement_id: item.text for item in requirements}
+    return [
+        gap
+        if gap.requirement_text
+        else gap.model_copy(update={"requirement_text": text_by_id.get(gap.requirement_id)})
+        for gap in coverage_gaps
     ]
 
 

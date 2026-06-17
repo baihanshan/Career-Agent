@@ -240,6 +240,7 @@ class GroundingWarning(BaseModel):
 
 class CoverageGap(BaseModel):
     requirement_id: str
+    requirement_text: str | None = None
     reason: str
     severity: Severity = "medium"
 

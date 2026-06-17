@@ -107,10 +107,19 @@ def _normalize_json_output(raw_output: str) -> str:
 
 
 def _extract_list_from_object(payload: dict[str, Any]) -> Any:
-    for key in ("requirements", "items", "data", "results"):
+    for key in ("requirements", "items", "data", "results", "job_requirements"):
         value = payload.get(key)
         if isinstance(value, list):
             return value
+        if isinstance(value, dict):
+            nested_value = _extract_list_from_object(value)
+            if isinstance(nested_value, list):
+                return nested_value
+    for value in payload.values():
+        if isinstance(value, dict):
+            nested_value = _extract_list_from_object(value)
+            if isinstance(nested_value, list):
+                return nested_value
     return payload
 
 
@@ -139,7 +148,16 @@ def _normalize_jd_requirement(item: Any, index: int) -> dict[str, Any]:
 
     text = _first_text_value(
         item,
-        ("text", "requirement", "description", "name", "title", "content"),
+        (
+            "text",
+            "requirement_text",
+            "requirement",
+            "description",
+            "name",
+            "title",
+            "content",
+            "summary",
+        ),
     )
     if not text:
         raise ValueError(f"Requirement {index} is missing requirement text.")
@@ -207,7 +225,16 @@ def _normalize_category(value: str) -> str:
 
 def _normalize_importance(value: str) -> str:
     normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
-    if normalized in {"high", "required", "must", "must_have", "critical", "essential"}:
+    if normalized in {
+        "high",
+        "required",
+        "mandatory",
+        "must",
+        "must_have",
+        "critical",
+        "essential",
+        "core",
+    }:
         return "high"
     if normalized in {"low", "optional", "nice_to_have", "preferred", "bonus"}:
         return "low"

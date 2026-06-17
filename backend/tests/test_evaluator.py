@@ -71,6 +71,7 @@ def test_uncovered_high_importance_requirement_produces_coverage_gap():
     )
 
     assert report.coverage_gaps[0].requirement_id == "req_python"
+    assert report.coverage_gaps[0].requirement_text == "Build Python APIs"
     assert report.coverage_gaps[0].severity == "high"
 
 

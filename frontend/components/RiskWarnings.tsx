@@ -30,7 +30,7 @@ export function RiskWarnings({ report }: RiskWarningsProps) {
             <span className={`severity severity-${gap.severity}`}>
               严重程度：{severityLabels[gap.severity]}
             </span>
-            <strong>未覆盖要求：{gap.requirement_id}</strong>
+            <strong>未覆盖要求：{gap.requirement_text ?? gap.reason}</strong>
             <p>{gap.reason}</p>
           </article>
         ))}

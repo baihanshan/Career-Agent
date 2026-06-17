@@ -176,6 +176,52 @@ def test_extract_jd_requirements_normalizes_common_model_schema_variants():
     )
 
 
+def test_extract_jd_requirements_accepts_nested_analysis_wrapper_and_mandatory_priority():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                {
+                  "jd_analysis": {
+                    "requirements": [
+                      {
+                        "id": "req_backend",
+                        "kind": "must_have",
+                        "requirement_text": "Must have Python backend API experience",
+                        "priority": "mandatory",
+                        "keywords": "Python, API"
+                      }
+                    ]
+                  }
+                }
+                """
+            }
+        )
+    )
+
+    requirements = service.extract_jd_requirements("Must have Python backend API experience.")
+
+    assert requirements == [
+        JDRequirement(
+            requirement_id="req_backend",
+            category="hard_skill",
+            text="Must have Python backend API experience",
+            importance="high",
+            keywords=["Python", "API"],
+        )
+    ]
+
+
+def test_jd_prompt_defines_user_readable_text_and_importance_criteria():
+    prompt = JD_REQUIREMENTS_PROMPT.lower()
+
+    assert "user-readable" in prompt
+    assert "high importance" in prompt
+    assert "medium importance" in prompt
+    assert "low importance" in prompt
+    assert "internal" in prompt
+
+
 def test_application_assets_json_parses_to_generated_assets():
     service = LLMService(
         client=FakeLLMClient(
