@@ -39,6 +39,15 @@ def test_sample_profile_and_jd_run_to_final_response():
     }
 
 
+def test_run_workflow_cleans_retrieval_collection_after_analysis():
+    services = _services()
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.status == "completed"
+    assert services.retrieval_service.vector_store.items == []
+
+
 def test_build_analysis_graph_returns_compiled_langgraph():
     graph = build_analysis_graph(_services())
 

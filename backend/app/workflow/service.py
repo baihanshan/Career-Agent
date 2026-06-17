@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from typing import Any, Mapping
+from uuid import uuid4
 
 from backend.app.api.schemas import AnalysisRequest, RunConfig
 from backend.app.llm.client import (
@@ -10,9 +11,9 @@ from backend.app.llm.client import (
     OpenAICompatibleChatClient,
     OpenAIResponsesClient,
 )
-from backend.app.retrieval.embeddings import FakeEmbeddingClient
+from backend.app.retrieval.embeddings import BGEEmbeddingClient, FakeEmbeddingClient
 from backend.app.retrieval.service import RetrievalService
-from backend.app.retrieval.vector_store import InMemoryVectorStore
+from backend.app.retrieval.vector_store import ChromaVectorStore, InMemoryVectorStore
 from backend.app.workflow.graph import run_workflow
 from backend.app.workflow.nodes import WorkflowServices
 
@@ -24,11 +25,34 @@ def run_analysis(request: AnalysisRequest) -> dict:
 
 def _default_services(run_config: RunConfig) -> WorkflowServices:
     return WorkflowServices(
-        retrieval_service=RetrievalService(
-            embedding_client=FakeEmbeddingClient(),
-            vector_store=InMemoryVectorStore(),
-        ),
+        retrieval_service=_default_retrieval_service(),
         llm_service=LLMService(client=_default_llm_client(run_config)),
+    )
+
+
+def _default_retrieval_service() -> RetrievalService:
+    if os.getenv("RETRIEVAL_BACKEND", "").strip().lower() == "fake":
+        return _fake_retrieval_service()
+
+    try:
+        return RetrievalService(
+            embedding_client=BGEEmbeddingClient(),
+            vector_store=ChromaVectorStore(
+                collection_name=f"analysis_{uuid4().hex}",
+                persist_path=os.getenv(
+                    "CHROMA_PATH",
+                    "/Users/baihanshan/Desktop/career-agent-chroma",
+                ),
+            ),
+        )
+    except RuntimeError:
+        return _fake_retrieval_service()
+
+
+def _fake_retrieval_service() -> RetrievalService:
+    return RetrievalService(
+        embedding_client=FakeEmbeddingClient(),
+        vector_store=InMemoryVectorStore(),
     )
 
 

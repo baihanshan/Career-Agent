@@ -93,7 +93,12 @@ def build_analysis_graph(services: WorkflowServices):
 
 def run_workflow(request: AnalysisRequest, services: WorkflowServices) -> AnalysisResponse:
     graph = build_analysis_graph(services)
-    return graph.invoke({"request": request})["response"]
+    try:
+        return graph.invoke({"request": request})["response"]
+    finally:
+        cleanup = getattr(services.retrieval_service, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
 
 
 def _parse_inputs_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:

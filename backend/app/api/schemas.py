@@ -64,6 +64,7 @@ class EvidenceItem(BaseModel):
     chunk_id: str
     source_name: str
     section_label: str | None = None
+    section_type: ResumeSectionType = "other"
     snippet: str
     score: float = Field(ge=0, le=1)
 
