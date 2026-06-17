@@ -1,5 +1,4 @@
 import type { AnalysisResult } from "../lib/types";
-import { EvidenceTable } from "./EvidenceTable";
 import { ProcessingWarnings } from "./ProcessingWarnings";
 import { RiskWarnings } from "./RiskWarnings";
 
@@ -46,15 +45,6 @@ export function ResultView({ result }: ResultViewProps) {
         </section>
 
         <section className="panel">
-          <h2>求职信草稿</h2>
-          <p>{assets.cover_letter.opening}</p>
-          {assets.cover_letter.body.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-          <p>{assets.cover_letter.closing}</p>
-        </section>
-
-        <section className="panel">
           <h2>面试准备</h2>
           <div className="prep-list">
             {assets.interview_prep.map((item) => (
@@ -70,7 +60,6 @@ export function ResultView({ result }: ResultViewProps) {
 
       <aside className="result-side">
         <ProcessingWarnings warnings={result.processing_warnings ?? []} />
-        <EvidenceTable evidence={result.evidence_table} />
         <RiskWarnings report={result.evaluation_report} />
       </aside>
     </div>

@@ -81,3 +81,64 @@ def test_chunk_output_order_is_stable():
         chunk.model_dump() for chunk in second_run
     ]
     assert [chunk.text for chunk in first_run] == ["Alpha.", "Beta.", "Gamma."]
+
+
+def test_chinese_project_heading_creates_project_section_metadata():
+    document = ProfileDocument(
+        document_id="doc_project",
+        source_name="resume.md",
+        source_type="markdown",
+        content=(
+            "## 项目经历\n\n"
+            "CareerPilot Agent：构建基于 LangGraph 的求职分析系统。\n"
+            "技术栈：FastAPI、LangGraph、Chroma。\n"
+            "结果：提升简历证据检索质量。"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert len(chunks) == 1
+    assert chunks[0].section_type == "project"
+    assert chunks[0].section_title == "项目经历"
+    assert chunks[0].project_name == "CareerPilot Agent"
+    assert chunks[0].technologies == ["FastAPI", "LangGraph", "Chroma"]
+    assert "结果：提升简历证据检索质量。" in chunks[0].text
+
+
+def test_english_experience_heading_creates_internship_section_metadata():
+    document = ProfileDocument(
+        document_id="doc_internship",
+        source_name="resume.md",
+        source_type="markdown",
+        content=(
+            "## Experience\n\n"
+            "Company: Acme AI\n"
+            "Role: Machine Learning Intern\n"
+            "Built an evaluation dashboard for retrieval quality.\n"
+            "Tech Stack: Python, FastAPI, React"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert len(chunks) == 1
+    assert chunks[0].section_type == "internship"
+    assert chunks[0].company_name == "Acme AI"
+    assert chunks[0].role_title == "Machine Learning Intern"
+    assert chunks[0].technologies == ["Python", "FastAPI", "React"]
+
+
+def test_skills_heading_is_not_misclassified_as_project_or_internship():
+    document = ProfileDocument(
+        document_id="doc_skills",
+        source_name="resume.md",
+        source_type="markdown",
+        content="## 技能\n\nPython、FastAPI、LangGraph、Chroma。",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert chunks[0].section_type == "skill"
+    assert chunks[0].project_name is None
+    assert chunks[0].company_name is None

@@ -4,7 +4,6 @@ import { join } from "node:path";
 const requiredPaths = [
   "app/page.tsx",
   "app/layout.tsx",
-  "components/EvidenceTable.tsx",
   "components/JobDescriptionInput.tsx",
   "components/ProfileInput.tsx",
   "components/ProcessingWarnings.tsx",
@@ -29,7 +28,6 @@ const requiredCopy = [
   "目标岗位 JD",
   "开始分析",
   "匹配总结",
-  "证据表",
   "风险提示",
   "流程警告",
 ];

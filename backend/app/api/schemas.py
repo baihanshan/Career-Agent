@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.app.documents.models import ProfileDocument
 
@@ -22,6 +22,7 @@ Severity = Literal["low", "medium", "high"]
 OverallStatus = Literal["pass", "pass_with_warnings", "fail"]
 AnalysisStatus = Literal["completed", "failed"]
 LLMProvider = Literal["local", "openai", "deepseek", "openai_compatible"]
+ResumeSectionType = Literal["internship", "project", "skill", "education", "other"]
 
 
 class RunConfig(BaseModel):
@@ -83,11 +84,100 @@ class MatchItem(BaseModel):
     gap_note: str | None = None
 
 
+class ResumeSectionMetadata(BaseModel):
+    company_name: str | None = None
+    role_title: str | None = None
+    project_name: str | None = None
+    technologies: list[str] = Field(default_factory=list)
+
+
+class ResumeSection(BaseModel):
+    section_type: ResumeSectionType
+    section_title: str
+    content: str
+    metadata: ResumeSectionMetadata = Field(default_factory=ResumeSectionMetadata)
+
+    @field_validator("section_title", "content")
+    @classmethod
+    def require_non_empty_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Field must not be empty.")
+        return stripped
+
+
+class AgentTrace(BaseModel):
+    agent_name: str
+    tool_name: str
+    arguments_summary: str
+    observation_summary: str
+    final_decision_summary: str
+
+    @field_validator(
+        "agent_name",
+        "tool_name",
+        "arguments_summary",
+        "observation_summary",
+        "final_decision_summary",
+    )
+    @classmethod
+    def require_non_empty_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Field must not be empty.")
+        return stripped
+
+
+class MatchStrategyItem(BaseModel):
+    evidence_id: str
+    section_type: ResumeSectionType
+    priority_score: float = Field(ge=0, le=1)
+    rationale: str
+
+
+class MatchStrategy(BaseModel):
+    ranked_evidence: list[MatchStrategyItem] = Field(default_factory=list)
+    summary: str | None = None
+
+
 class ResumeBullet(BaseModel):
     text: str
     target_requirement_ids: list[str]
     evidence_ids: list[str]
     risk_level: RiskLevel
+
+
+class InterviewPrepQuestion(BaseModel):
+    question: str
+    sample_answer: str
+    supporting_evidence_ids: list[str] = Field(default_factory=list)
+
+
+class InterviewPrep(BaseModel):
+    jd_questions: list[InterviewPrepQuestion] = Field(default_factory=list)
+    resume_deep_dive_questions: list[InterviewPrepQuestion] = Field(default_factory=list)
+
+
+class RiskItem(BaseModel):
+    risk_type: str
+    title: str
+    jd_requirement_summary: str
+    resume_current_state: str
+    risk_reason: str
+    recommendation: str
+    severity: Severity
+
+
+class RiskReport(BaseModel):
+    risks: list[RiskItem] = Field(default_factory=list, max_length=3)
+
+
+class Sprint2GeneratedAssets(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    match_summary: str
+    resume_bullets: list[ResumeBullet] = Field(min_length=3, max_length=3)
+    interview_prep: InterviewPrep
 
 
 class CoverLetterDraft(BaseModel):

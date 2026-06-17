@@ -128,7 +128,7 @@ export default function Home() {
           <p className="eyebrow">Evidence-grounded Career Agent</p>
           <h1>CareerPilot Agent</h1>
           <p>
-            粘贴个人材料和目标岗位 JD，生成带证据引用的匹配分析、简历要点、求职信草稿和面试准备建议。
+            粘贴个人材料和目标岗位 JD，生成带证据引用的匹配分析、简历要点、面试准备和风险提示。
           </p>
         </div>
       </section>
@@ -157,7 +157,7 @@ function EmptyState() {
     <section className="empty-state">
       <h2>结果区</h2>
       <p>
-        完成分析后，这里会展示匹配总结、证据表、简历要点、求职信草稿、面试准备、流程警告和风险提示。
+        完成分析后，这里会展示匹配总结、简历要点、面试准备、流程警告和风险提示。
       </p>
     </section>
   );
@@ -171,7 +171,6 @@ function isAnalysisResult(result: AnalysisResponse["result"]): result is Analysi
   const candidate = result as Partial<AnalysisResult>;
   return Boolean(
     Array.isArray(candidate.jd_requirements) &&
-      Array.isArray(candidate.evidence_table) &&
       Array.isArray(candidate.match_analysis) &&
       candidate.generated_assets &&
       candidate.evaluation_report

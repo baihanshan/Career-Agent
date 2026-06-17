@@ -59,9 +59,9 @@ Sprint 2 目标是升级为：
 
 ## 模块进度
 
-- [ ] `project-setup.md`：依赖、环境变量、BGE/Chroma 默认路径
-- [ ] `data-models-state.md`：Sprint 2 schema、workflow state、trace model
-- [ ] `resume-structure.md`：结构化简历 section 与 chunk metadata
+- [x] `project-setup.md`：依赖、环境变量、BGE/Chroma 默认路径
+- [x] `data-models-state.md`：Sprint 2 schema、workflow state、trace model
+- [x] `resume-structure.md`：结构化简历 section 与 chunk metadata
 - [ ] `embedding-chroma.md`：BGE embedding、Chroma store、collection lifecycle
 - [ ] `agent-tools-trace.md`：ReAct 工具集与 trace 记录
 - [ ] `jd-analyst-agent.md`：JD 结构化分析节点
