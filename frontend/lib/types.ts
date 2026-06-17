@@ -55,6 +55,21 @@ export interface MatchItem {
   gap_note?: string | null;
 }
 
+export interface MatchStrategyItem {
+  evidence_id: string;
+  section_type: ProfileSectionType;
+  priority_score: number;
+  rationale: string;
+  requirement_id?: string | null;
+}
+
+export interface MatchStrategy {
+  ranked_evidence: MatchStrategyItem[];
+  covered_requirement_ids: string[];
+  missing_requirement_ids: string[];
+  summary?: string | null;
+}
+
 export interface ResumeBullet {
   text: string;
   target_requirement_ids: string[];
@@ -120,6 +135,7 @@ export interface EvaluationReport {
 export interface AnalysisResult {
   jd_requirements: JDRequirement[];
   match_analysis: MatchItem[];
+  match_strategy?: MatchStrategy | null;
   generated_assets: GeneratedAssets;
   evaluation_report: EvaluationReport;
   processing_warnings?: ProcessingWarning[];

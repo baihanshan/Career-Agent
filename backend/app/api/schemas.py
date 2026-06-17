@@ -162,10 +162,13 @@ class MatchStrategyItem(BaseModel):
     section_type: ResumeSectionType
     priority_score: float = Field(ge=0, le=1)
     rationale: str
+    requirement_id: str | None = None
 
 
 class MatchStrategy(BaseModel):
     ranked_evidence: list[MatchStrategyItem] = Field(default_factory=list)
+    covered_requirement_ids: list[str] = Field(default_factory=list)
+    missing_requirement_ids: list[str] = Field(default_factory=list)
     summary: str | None = None
 
 

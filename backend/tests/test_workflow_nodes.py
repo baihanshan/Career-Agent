@@ -87,6 +87,9 @@ def test_score_match_writes_match_analysis():
 
     assert next_state.match_analysis[0].match_level == "strong"
     assert next_state.match_analysis[0].evidence_ids == ["ev_python"]
+    assert next_state.match_strategy is not None
+    assert next_state.match_strategy.covered_requirement_ids == ["req_python"]
+    assert next_state.match_strategy.ranked_evidence[0].evidence_id == "ev_python"
 
 
 def test_write_application_writes_generated_assets():
@@ -129,6 +132,7 @@ def test_finalize_response_outputs_completed_api_response_result():
 
     assert response.status == "completed"
     assert response.result["jd_requirements"][0]["requirement_id"] == "req_python"
+    assert response.result["match_strategy"] is None
     assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"] == [
         "ev_python"
     ]

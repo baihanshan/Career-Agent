@@ -17,7 +17,7 @@ from backend.app.evaluation.evaluator import evaluate_generated_assets
 from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.service import RetrievalService
-from backend.app.workflow.match_scoring import score_matches
+from backend.app.workflow.match_scoring import build_match_strategy, score_matches
 from backend.app.workflow.resume_evidence_agent import (
     ResumeEvidenceAgent,
     ResumeEvidenceAgentError,
@@ -107,7 +107,14 @@ def score_match(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
         requirements=state.jd_requirements,
         evidence_items=state.retrieved_evidence,
     )
-    return state.model_copy(update={"match_analysis": match_analysis})
+    match_strategy = build_match_strategy(
+        requirements=state.jd_requirements,
+        evidence_items=state.retrieved_evidence,
+        match_items=match_analysis,
+    )
+    return state.model_copy(
+        update={"match_analysis": match_analysis, "match_strategy": match_strategy}
+    )
 
 
 def write_application(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
@@ -172,6 +179,11 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
             "match_analysis": [
                 item.model_dump(mode="json") for item in state.match_analysis
             ],
+            "match_strategy": (
+                state.match_strategy.model_dump(mode="json")
+                if state.match_strategy is not None
+                else None
+            ),
             "generated_assets": (
                 state.generated_assets.model_dump(mode="json")
                 if state.generated_assets is not None
