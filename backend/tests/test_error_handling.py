@@ -104,7 +104,7 @@ def test_short_profile_material_generates_warning_without_blocking_workflow():
     ]
 
 
-def test_weak_evidence_stays_in_evaluation_report_not_api_error():
+def test_missing_resume_evidence_returns_user_friendly_retrieval_error():
     request = AnalysisRequest(
         profile_documents=[
             ProfileDocument(
@@ -119,12 +119,9 @@ def test_weak_evidence_stays_in_evaluation_report_not_api_error():
 
     response = run_workflow(request=request, services=_services())
 
-    assert response.status == "completed"
-    assert response.error is None
-    assert response.result["evaluation_report"]["overall_status"] in {
-        "pass_with_warnings",
-        "fail",
-    }
+    assert response.status == "failed"
+    assert response.error["code"] == "RETRIEVAL_ERROR"
+    assert response.error["message"] == "Could not find usable resume evidence for this JD."
 
 
 def _request() -> AnalysisRequest:

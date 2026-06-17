@@ -18,6 +18,10 @@ from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.service import RetrievalService
 from backend.app.workflow.match_scoring import score_matches
+from backend.app.workflow.resume_evidence_agent import (
+    ResumeEvidenceAgent,
+    ResumeEvidenceAgentError,
+)
 from backend.app.workflow.state import AnalysisState
 from backend.app.workflow.writer import write_application as generate_application
 
@@ -82,11 +86,14 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
 
 def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
-        evidence = services.retrieval_service.retrieve_evidence(
-            requirements=state.jd_requirements,
-            top_k=state.run_config.top_k,
+        return ResumeEvidenceAgent().run(state, services.retrieval_service)
+    except ResumeEvidenceAgentError as exc:
+        return _append_error(
+            state,
+            WorkflowErrorCode.RETRIEVAL_ERROR.value,
+            "Could not find usable resume evidence for this JD.",
+            details={"reason": str(exc)},
         )
-        return state.model_copy(update={"retrieved_evidence": evidence})
     except Exception:
         return _append_error(
             state,
@@ -195,9 +202,14 @@ def _extract_jd_requirements_with_retry(
         return services.llm_service.extract_jd_requirements(state.job_description)
 
 
-def _append_error(state: AnalysisState, code: str, message: str) -> AnalysisState:
+def _append_error(
+    state: AnalysisState,
+    code: str,
+    message: str,
+    details: dict | None = None,
+) -> AnalysisState:
     return state.model_copy(
-        update={"errors": [*state.errors, AppError(code=code, message=message)]}
+        update={"errors": [*state.errors, AppError(code=code, message=message, details=details)]}
     )
 
 
