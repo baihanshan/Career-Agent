@@ -159,18 +159,13 @@ def _state_with_sensitive_details() -> WorkflowState:
             match_summary="Strong API match.",
             resume_bullets=[
                 ResumeBullet(
-                    text="Built a production API.",
+                    text=f"Built production API bullet {index}.",
                     target_requirement_ids=["req_python"],
                     evidence_ids=["ev_project"],
                     risk_level="low",
                 )
+                for index in range(1, 4)
             ],
-            cover_letter={
-                "opening": "Hello",
-                "body": ["API background."],
-                "closing": "Thanks",
-                "evidence_ids": ["ev_project"],
-            },
             interview_prep=[
                 InterviewPrepItem(
                     topic="API project",

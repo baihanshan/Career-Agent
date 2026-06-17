@@ -1,7 +1,6 @@
 import json
 
 from backend.app.api.schemas import (
-    CoverLetterDraft,
     EvidenceItem,
     GeneratedAssets,
     InterviewPrepItem,
@@ -212,15 +211,19 @@ def test_semantic_grounding_parse_failure_does_not_fail_evaluation():
 
 
 def _assets(resume_bullets: list[ResumeBullet]) -> GeneratedAssets:
+    normalized_bullets = list(resume_bullets[:3])
+    while len(normalized_bullets) < 3:
+        normalized_bullets.append(
+            ResumeBullet(
+                text="Additional FastAPI project evidence describes implementation, testing, and delivery context.",
+                target_requirement_ids=["req_aux"],
+                evidence_ids=["ev_python"],
+                risk_level="low",
+            )
+        )
     return GeneratedAssets(
         match_summary="Python API fit.",
-        resume_bullets=resume_bullets,
-        cover_letter=CoverLetterDraft(
-            opening="I am excited to apply.",
-            body=["My Python API work aligns with the role."],
-            closing="Thank you for your consideration.",
-            evidence_ids=["ev_python"],
-        ),
+        resume_bullets=normalized_bullets,
         interview_prep=[
             InterviewPrepItem(
                 topic="Python API project",

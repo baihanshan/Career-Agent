@@ -77,9 +77,6 @@ def test_run_analysis_service_returns_chinese_generated_content():
     generated_texts = [
         assets["match_summary"],
         assets["resume_bullets"][0]["text"],
-        assets["cover_letter"]["opening"],
-        assets["cover_letter"]["body"][0],
-        assets["cover_letter"]["closing"],
         assets["interview_prep"][0]["topic"],
         assets["interview_prep"][0]["why_it_matters"],
         assets["interview_prep"][0]["prep_suggestion"],
@@ -186,18 +183,13 @@ class _StaticLLMClient:
                 "match_summary": "Strong fit for Python API work.",
                 "resume_bullets": [
                     {
-                        "text": "Built Python APIs backed by project evidence.",
+                        "text": f"Built Python APIs backed by project evidence {index}.",
                         "target_requirement_ids": ["req_python"],
                         "evidence_ids": ["req_python:evidence:1"],
                         "risk_level": "low",
                     }
+                    for index in range(1, 4)
                 ],
-                "cover_letter": {
-                    "opening": "I am excited to apply.",
-                    "body": ["My Python API project aligns with the role."],
-                    "closing": "Thank you for your consideration.",
-                    "evidence_ids": ["req_python:evidence:1"],
-                },
                 "interview_prep": [
                     {
                         "topic": "Python API project",

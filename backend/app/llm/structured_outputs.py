@@ -254,7 +254,6 @@ def _normalize_generated_assets(
     context: Mapping[str, Any],
 ) -> dict[str, Any]:
     resume_bullets = payload.get("resume_bullets") or payload.get("bullets") or []
-    cover_letter = payload.get("cover_letter") or payload.get("letter") or {}
     interview_prep = (
         payload.get("interview_prep")
         or payload.get("interview_questions")
@@ -266,14 +265,14 @@ def _normalize_generated_assets(
         or _string_value(payload.get("summary"))
         or "根据已检索到的个人材料证据，候选人与目标岗位存在可解释的匹配点。"
     )
+    normalized_bullets = [
+        _normalize_resume_bullet(item, index, context)
+        for index, item in enumerate(_list_value(resume_bullets), start=1)
+    ]
 
     return {
         "match_summary": match_summary,
-        "resume_bullets": [
-            _normalize_resume_bullet(item, index, context)
-            for index, item in enumerate(_list_value(resume_bullets), start=1)
-        ],
-        "cover_letter": _normalize_cover_letter(cover_letter, context),
+        "resume_bullets": _exactly_three_resume_bullets(normalized_bullets, context),
         "interview_prep": [
             _normalize_interview_prep_item(item, index, context)
             for index, item in enumerate(_list_value(interview_prep), start=1)
@@ -334,25 +333,57 @@ def _normalize_resume_bullet(
     }
 
 
-def _normalize_cover_letter(item: Any, context: Mapping[str, Any]) -> dict[str, Any]:
-    fallback_evidence_ids = _fallback_evidence_ids(_default_requirement_ids(context), context)
-    if isinstance(item, str):
-        return {
-            "opening": "您好，我很高兴申请这个岗位。",
-            "body": [item],
-            "closing": "感谢您的时间与考虑，期待进一步交流。",
-            "evidence_ids": fallback_evidence_ids,
-        }
-    if not isinstance(item, dict):
-        item = {}
-    body = item.get("body") or item.get("paragraphs") or item.get("content") or []
+def _exactly_three_resume_bullets(
+    bullets: list[dict[str, Any]],
+    context: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    normalized = list(bullets[:3])
+    while len(normalized) < 3:
+        normalized.append(_fallback_resume_bullet(len(normalized) + 1, context))
+    return normalized
+
+
+def _fallback_resume_bullet(index: int, context: Mapping[str, Any]) -> dict[str, Any]:
+    evidence = _preferred_evidence(context)
+    requirement_ids = _default_requirement_ids(context)
+    evidence_ids = [_get_value(evidence, "evidence_id")] if evidence else []
+    evidence_ids = [item for item in evidence_ids if isinstance(item, str)]
+    if evidence:
+        section_type = _get_value(evidence, "section_type") or "other"
+        snippet = _string_value(_get_value(evidence, "snippet")) or _string_value(
+            _get_value(evidence, "text")
+        )
+        text = (
+            f"基于{section_type}证据补充第 {index} 条简历要点："
+            f"{snippet or '请补充项目或实习中的具体贡献、技术栈和结果。'}"
+        )
+    else:
+        text = f"第 {index} 条简历要点需要补充可追溯的项目或实习证据。"
     return {
-        "opening": _string_value(item.get("opening")) or "您好，我很高兴申请这个岗位。",
-        "body": _list_value(body) or ["根据已引用的个人材料证据，我的经历与该岗位要求具有相关性。"],
-        "closing": _string_value(item.get("closing")) or "感谢您的时间与考虑，期待进一步交流。",
-        "evidence_ids": _known_evidence_ids(item.get("evidence_ids") or [], context)
-        or fallback_evidence_ids,
+        "text": text,
+        "target_requirement_ids": requirement_ids,
+        "evidence_ids": evidence_ids,
+        "risk_level": "low" if evidence_ids else "high",
     }
+
+
+def _preferred_evidence(context: Mapping[str, Any]) -> dict[str, Any] | None:
+    evidence_items = [
+        item for item in context.get("evidence", []) if isinstance(item, dict)
+    ]
+    if not evidence_items:
+        return None
+    return sorted(
+        evidence_items,
+        key=lambda item: (
+            {"project": 2, "internship": 2, "skill": 0}.get(
+                _get_value(item, "section_type"),
+                1,
+            ),
+            float(_get_value(item, "score") or 0),
+        ),
+        reverse=True,
+    )[0]
 
 
 def _normalize_interview_prep_item(
@@ -549,12 +580,12 @@ def _normalize_asset_type(value: Any) -> str:
     if normalized in {"resume", "bullet", "resume_bullets"}:
         return "resume_bullet"
     if normalized in {"letter", "cover"}:
-        return "cover_letter"
+        return "resume_bullet"
     if normalized in {"summary"}:
         return "match_summary"
     if normalized in {"interview", "interview_question", "interview_questions"}:
         return "interview_prep"
-    if normalized in {"resume_bullet", "cover_letter", "match_summary", "interview_prep"}:
+    if normalized in {"resume_bullet", "match_summary", "interview_prep"}:
         return normalized
     return "resume_bullet"
 

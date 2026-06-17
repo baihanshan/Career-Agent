@@ -19,6 +19,12 @@ Generate evidence-only, evidence-grounded application assets from requirements, 
 Every user-experience claim must cite evidence_ids.
 Do not fabricate employers, dates, numbers, tools, outcomes, or responsibilities.
 Missing requirements must not produce confident low-risk experience claims.
+Return exactly 3 resume_bullets, ordered by JD match priority.
+Use project and internship evidence first.
+Use skills only as supporting context; never generate a standalone bullet from a skill list.
+Internship bullets must include company name, project/work content, outcome, and tech stack when present in evidence.
+Project bullets must include project name, personal contribution, tech stack, and result or measurable impact when present in evidence.
+Do not generate a cover letter.
 Return only JSON matching the GeneratedAssets schema.
 Do not wrap the JSON in markdown fences.
 Do not include explanations before or after the JSON.

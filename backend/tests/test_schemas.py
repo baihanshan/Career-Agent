@@ -6,7 +6,6 @@ from backend.app.documents.models import ProfileChunk, ProfileDocument
 from backend.app.workflow.state import WorkflowState
 from backend.app.api.schemas import (
     AgentTrace,
-    CoverLetterDraft,
     EvaluationReport,
     EvidenceItem,
     GeneratedAssets,
@@ -99,18 +98,13 @@ def test_generated_assets_accepts_complete_application_payload():
         match_summary="Good fit for applied AI prototyping.",
         resume_bullets=[
             ResumeBullet(
-                text="Built a retrieval prototype over project notes.",
+                text=f"Built retrieval prototype {index} over project notes.",
                 target_requirement_ids=["req_1"],
-                evidence_ids=["ev_1"],
+                evidence_ids=[f"ev_{index}"],
                 risk_level="low",
             )
+            for index in range(1, 4)
         ],
-        cover_letter=CoverLetterDraft(
-            opening="I am excited to apply.",
-            body=["My project work aligns with the role."],
-            closing="Thank you for your consideration.",
-            evidence_ids=["ev_1"],
-        ),
         interview_prep=[
             InterviewPrepItem(
                 topic="Retrieval project",
@@ -122,6 +116,7 @@ def test_generated_assets_accepts_complete_application_payload():
     )
 
     assert assets.resume_bullets[0].evidence_ids == ["ev_1"]
+    assert "cover_letter" not in assets.model_dump()
 
 
 def test_resume_section_accepts_known_section_type_and_metadata():

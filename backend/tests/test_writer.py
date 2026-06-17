@@ -40,6 +40,7 @@ def test_write_application_returns_generated_assets_from_fake_llm():
     assert assets.resume_bullets[0].target_requirement_ids == ["req_python"]
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
     assert fake_client.calls[0]["prompt_key"] == "generate_application_assets"
+    assert len(assets.resume_bullets) == 3
 
 
 def test_missing_evidence_ids_are_replaced_with_matching_evidence():
@@ -108,7 +109,7 @@ def test_missing_requirement_bullet_is_downgraded_to_high_risk():
     assert assets.resume_bullets[0].evidence_ids == []
 
 
-def test_cover_letter_contains_opening_body_and_closing():
+def test_write_application_does_not_return_cover_letter():
     service = LLMService(
         client=FakeLLMClient(
             responses={"generate_application_assets": _assets_json(risk_level="low")}
@@ -122,9 +123,96 @@ def test_cover_letter_contains_opening_body_and_closing():
         llm_service=service,
     )
 
-    assert assets.cover_letter.opening
-    assert assets.cover_letter.body == ["My Python API project aligns with the role."]
-    assert assets.cover_letter.closing
+    assert "cover_letter" not in assets.model_dump()
+
+
+def test_skill_evidence_does_not_generate_standalone_resume_bullet():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": _assets_json(
+                    evidence_ids=["ev_skill"],
+                    text="Python, FastAPI, and LangGraph skills.",
+                )
+            }
+        )
+    )
+
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_skill", "req_python", section_type="skill")],
+        match_items=[_match("req_python", "strong", ["ev_skill"])],
+        llm_service=service,
+    )
+
+    assert all("skills." not in bullet.text for bullet in assets.resume_bullets)
+    assert all(bullet.risk_level == "high" for bullet in assets.resume_bullets)
+
+
+def test_internship_bullet_contains_company_project_outcome_and_tech_stack():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": _assets_json(
+                    evidence_ids=["ev_internship"],
+                    text="At Acme AI, built a retrieval dashboard with FastAPI and React, improving review efficiency by 30%.",
+                )
+            }
+        )
+    )
+
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[
+            _evidence(
+                "ev_internship",
+                "req_python",
+                section_type="internship",
+                snippet="Company: Acme AI. Project: retrieval dashboard. Tech Stack: FastAPI, React. Result: improved review efficiency by 30%.",
+            )
+        ],
+        match_items=[_match("req_python", "strong", ["ev_internship"])],
+        llm_service=service,
+    )
+
+    bullet_text = assets.resume_bullets[0].text
+    assert "Acme AI" in bullet_text
+    assert "retrieval dashboard" in bullet_text
+    assert "FastAPI" in bullet_text
+    assert "30%" in bullet_text
+
+
+def test_project_bullet_contains_project_name_contribution_tech_stack_and_result():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": _assets_json(
+                    evidence_ids=["ev_project"],
+                    text="Built CareerPilot Agent by designing the LangGraph workflow and FastAPI backend, improving JD-to-resume evidence matching.",
+                )
+            }
+        )
+    )
+
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[
+            _evidence(
+                "ev_project",
+                "req_python",
+                section_type="project",
+                snippet="Project: CareerPilot Agent. Contribution: designed LangGraph workflow and FastAPI backend. Result: improved JD-to-resume evidence matching.",
+            )
+        ],
+        match_items=[_match("req_python", "strong", ["ev_project"])],
+        llm_service=service,
+    )
+
+    bullet_text = assets.resume_bullets[0].text
+    assert "CareerPilot Agent" in bullet_text
+    assert "design" in bullet_text
+    assert "LangGraph" in bullet_text
+    assert "improv" in bullet_text
 
 
 def test_interview_prep_contains_topic_reason_and_suggestion():
@@ -153,6 +241,9 @@ def test_writer_prompt_contains_evidence_only_constraints():
     assert "evidence-only" in prompt
     assert "do not fabricate" in prompt
     assert "employers, dates, numbers, tools, outcomes" in prompt
+    assert "exactly 3 resume_bullets" in prompt
+    assert "skills only as supporting context" in prompt
+    assert "project and internship evidence first" in prompt
 
 
 def _requirement(requirement_id: str) -> JDRequirement:
@@ -165,14 +256,20 @@ def _requirement(requirement_id: str) -> JDRequirement:
     )
 
 
-def _evidence(evidence_id: str, requirement_id: str) -> EvidenceItem:
+def _evidence(
+    evidence_id: str,
+    requirement_id: str,
+    section_type: str = "project",
+    snippet: str = "Built Python FastAPI services.",
+) -> EvidenceItem:
     return EvidenceItem(
         evidence_id=evidence_id,
         requirement_id=requirement_id,
         chunk_id="chunk_python",
         source_name="resume.md",
         section_label="Projects",
-        snippet="Built Python FastAPI services.",
+        section_type=section_type,
+        snippet=snippet,
         score=0.91,
     )
 
@@ -206,12 +303,6 @@ def _assets_json(
                     "risk_level": risk_level,
                 }
             ],
-            "cover_letter": {
-                "opening": "I am excited about this backend role.",
-                "body": ["My Python API project aligns with the role."],
-                "closing": "Thank you for your consideration.",
-                "evidence_ids": evidence_ids,
-            },
             "interview_prep": [
                 {
                     "topic": "Python API project",

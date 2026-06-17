@@ -17,7 +17,7 @@ RequirementCategory = Literal[
 Importance = Literal["high", "medium", "low"]
 MatchLevel = Literal["strong", "partial", "weak", "missing"]
 RiskLevel = Literal["low", "medium", "high"]
-AssetType = Literal["resume_bullet", "cover_letter", "match_summary", "interview_prep"]
+AssetType = Literal["resume_bullet", "match_summary", "interview_prep"]
 Severity = Literal["low", "medium", "high"]
 ToolStatus = Literal["success", "error"]
 OverallStatus = Literal["pass", "pass_with_warnings", "fail"]
@@ -212,13 +212,6 @@ class Sprint2GeneratedAssets(BaseModel):
     interview_prep: InterviewPrep
 
 
-class CoverLetterDraft(BaseModel):
-    opening: str
-    body: list[str]
-    closing: str
-    evidence_ids: list[str]
-
-
 class InterviewPrepItem(BaseModel):
     topic: str
     why_it_matters: str
@@ -228,8 +221,7 @@ class InterviewPrepItem(BaseModel):
 
 class GeneratedAssets(BaseModel):
     match_summary: str
-    resume_bullets: list[ResumeBullet]
-    cover_letter: CoverLetterDraft
+    resume_bullets: list[ResumeBullet] = Field(min_length=3, max_length=3)
     interview_prep: list[InterviewPrepItem]
 
 

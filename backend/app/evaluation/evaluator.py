@@ -184,7 +184,6 @@ def _check_specificity(resume_bullets: list[ResumeBullet]) -> list[str]:
 
 def _claims_from_assets(assets: GeneratedAssets) -> list[str]:
     claims = [bullet.text for bullet in assets.resume_bullets]
-    claims.extend(assets.cover_letter.body)
     claims.extend(item.prep_suggestion for item in assets.interview_prep)
     return claims
 

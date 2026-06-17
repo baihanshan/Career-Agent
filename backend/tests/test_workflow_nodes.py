@@ -252,7 +252,6 @@ def _match(requirement_id: str, evidence_ids: list[str]):
 
 def _generated_assets():
     from backend.app.api.schemas import (
-        CoverLetterDraft,
         GeneratedAssets,
         InterviewPrepItem,
         ResumeBullet,
@@ -262,18 +261,13 @@ def _generated_assets():
         match_summary="Strong fit for Python API work.",
         resume_bullets=[
             ResumeBullet(
-                text="Built Python APIs backed by project evidence.",
+                text=f"Built Python APIs backed by project evidence {index}.",
                 target_requirement_ids=["req_python"],
                 evidence_ids=["ev_python"],
                 risk_level="low",
             )
+            for index in range(1, 4)
         ],
-        cover_letter=CoverLetterDraft(
-            opening="I am excited to apply.",
-            body=["My Python API project aligns with the role."],
-            closing="Thank you for your consideration.",
-            evidence_ids=["ev_python"],
-        ),
         interview_prep=[
             InterviewPrepItem(
                 topic="Python API project",

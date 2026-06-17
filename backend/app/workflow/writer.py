@@ -34,6 +34,9 @@ def build_writer_context(
             "Every confident resume bullet must include evidence_ids.",
             "Do not fabricate employers, dates, numbers, tools, outcomes, or responsibilities.",
             "Missing requirements may only produce high-risk caveats or interview prep.",
+            "Generate exactly 3 resume bullets.",
+            "Prioritize project and internship evidence before skill evidence.",
+            "Use skill evidence only as supporting context, never as a standalone bullet.",
         ],
     }
 
@@ -95,10 +98,36 @@ def _validate_and_downgrade_bullet(
     if targets_missing_requirement:
         return bullet.model_copy(update={"risk_level": "high"})
 
+    if _uses_only_skill_evidence(bullet, context):
+        return bullet.model_copy(
+            update={
+                "text": "需要补充项目或实习证据后，再将技能点转化为可展示的简历要点。",
+                "risk_level": "high",
+            }
+        )
+
     if not bullet.evidence_ids and bullet.risk_level != "high":
         return bullet.model_copy(update={"risk_level": "high"})
 
     return bullet
+
+
+def _uses_only_skill_evidence(bullet: ResumeBullet, context: Mapping[str, Any]) -> bool:
+    if not bullet.evidence_ids:
+        return False
+    evidence_by_id = {
+        item["evidence_id"]: item
+        for item in context["evidence"]
+        if item.get("evidence_id")
+    }
+    bullet_evidence = [
+        evidence_by_id[evidence_id]
+        for evidence_id in bullet.evidence_ids
+        if evidence_id in evidence_by_id
+    ]
+    return bool(bullet_evidence) and all(
+        item.get("section_type") == "skill" for item in bullet_evidence
+    )
 
 
 def _fallback_evidence_ids(

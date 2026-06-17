@@ -12,17 +12,14 @@
       "target_requirement_ids": ["req_langgraph"],
       "evidence_ids": ["req_langgraph:evidence:1"],
       "risk_level": "low"
+    },
+    {
+      "text": "围绕检索增强生成场景实现证据引用和风险评估逻辑，使用 Python、FastAPI 和工作流节点串联稳定分析链路。",
+      "target_requirement_ids": ["req_rag"],
+      "evidence_ids": ["req_rag:evidence:1"],
+      "risk_level": "low"
     }
   ],
-  "cover_letter": {
-    "opening": "您好，我很高兴申请这个 AI 应用工程师岗位。",
-    "body": [
-      "我的项目经历与岗位中对 Python API 和证据驱动 AI 工作流的要求高度相关。",
-      "我曾实现检索和评估组件，用于确保生成的求职内容能够关联到用户提供的材料证据。"
-    ],
-    "closing": "感谢您的时间与考虑，期待进一步交流。",
-    "evidence_ids": ["req_python_api:evidence:1", "req_rag:evidence:1"]
-  },
   "interview_prep": [
     {
       "topic": "证据驱动的工作流项目",

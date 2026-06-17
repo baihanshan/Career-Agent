@@ -200,18 +200,13 @@ def _assets_from_context(variables):
         "match_summary": "Generated summary based on evidence.",
         "resume_bullets": [
             {
-                "text": "Built Python APIs backed by project evidence.",
+                "text": f"Built Python APIs backed by project evidence {index}.",
                 "target_requirement_ids": ["req_python"],
                 "evidence_ids": bullet_evidence_ids,
                 "risk_level": "low" if bullet_evidence_ids else "high",
             }
+            for index in range(1, 4)
         ],
-        "cover_letter": {
-            "opening": "I am excited to apply.",
-            "body": ["My background aligns with the role."],
-            "closing": "Thank you for your consideration.",
-            "evidence_ids": bullet_evidence_ids,
-        },
         "interview_prep": [
             {
                 "topic": "Evidence-backed discussion",

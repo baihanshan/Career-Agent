@@ -67,7 +67,7 @@ Sprint 2 目标是升级为：
 - [x] `jd-analyst-agent.md`：JD 结构化分析节点
 - [x] `resume-evidence-agent.md`：Resume Evidence ReAct Agent
 - [x] `match-strategist-agent.md`：匹配策略与排序
-- [ ] `resume-bullet-agent.md`：3 条项目/实习优先简历要点
+- [x] `resume-bullet-agent.md`：3 条项目/实习优先简历要点
 - [ ] `interview-prep-agent.md`：轻量 ReAct 面试准备
 - [ ] `risk-auditor-agent.md`：ReAct top 3 风险评估
 - [ ] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程

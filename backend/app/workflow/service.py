@@ -147,18 +147,13 @@ def _assets_from_context(context: Mapping[str, Any]) -> dict[str, Any]:
         "match_summary": "根据已检索到的个人材料证据，候选人与目标岗位存在可解释的匹配点。",
         "resume_bullets": [
             {
-                "text": "基于个人材料中的项目证据，完成了与目标岗位相关的技术实践，并可追溯到引用证据。",
+                "text": f"基于个人材料中的项目证据 {index}，完成了与目标岗位相关的技术实践，并可追溯到引用证据。",
                 "target_requirement_ids": [first_requirement_id],
                 "evidence_ids": bullet_evidence_ids,
                 "risk_level": bullet_risk,
             }
+            for index in range(1, 4)
         ],
-        "cover_letter": {
-            "opening": "您好，我很高兴申请这个岗位。",
-            "body": ["根据已引用的个人材料证据，我的项目经历与该岗位的核心要求具有较强相关性。"],
-            "closing": "感谢您的时间与考虑，期待进一步交流。",
-            "evidence_ids": bullet_evidence_ids,
-        },
         "interview_prep": [
             {
                 "topic": "基于证据的项目经历说明",

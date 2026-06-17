@@ -237,12 +237,6 @@ def test_application_assets_json_parses_to_generated_assets():
                       "risk_level": "low"
                     }
                   ],
-                  "cover_letter": {
-                    "opening": "I am excited about the API role.",
-                    "body": ["My Python API project aligns with your backend needs."],
-                    "closing": "Thank you for your consideration.",
-                    "evidence_ids": ["ev_python"]
-                  },
                   "interview_prep": [
                     {
                       "topic": "Python API project",
@@ -266,7 +260,8 @@ def test_application_assets_json_parses_to_generated_assets():
     )
 
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
-    assert assets.cover_letter.evidence_ids == ["ev_python"]
+    assert len(assets.resume_bullets) == 3
+    assert "cover_letter" not in assets.model_dump()
 
 
 def test_application_assets_normalizes_common_model_schema_variants():
@@ -284,7 +279,6 @@ def test_application_assets_normalizes_common_model_schema_variants():
                         "evidence_id": "ev_python"
                       }
                     ],
-                    "cover_letter": "I am excited to apply because my API project matches the role.",
                     "interview_questions": [
                       "Explain the FastAPI project architecture."
                     ]
@@ -316,9 +310,7 @@ def test_application_assets_normalizes_common_model_schema_variants():
     assert assets.resume_bullets[0].text == "Built FastAPI services for a project."
     assert assets.resume_bullets[0].target_requirement_ids == ["req_python"]
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
-    assert assets.cover_letter.body == [
-        "I am excited to apply because my API project matches the role."
-    ]
+    assert len(assets.resume_bullets) == 3
     assert assets.interview_prep[0].prep_suggestion == "Explain the FastAPI project architecture."
 
 
