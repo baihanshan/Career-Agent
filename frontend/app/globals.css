@@ -229,15 +229,7 @@ textarea {
   font-size: 20px;
 }
 
-.results-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.result-main,
-.result-side {
+.result-main {
   display: grid;
   gap: 16px;
 }
@@ -328,8 +320,7 @@ textarea {
 }
 
 @media (max-width: 860px) {
-  .input-grid,
-  .results-grid {
+  .input-grid {
     grid-template-columns: 1fr;
   }
 

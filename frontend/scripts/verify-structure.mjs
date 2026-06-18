@@ -60,4 +60,39 @@ if (riskWarnings.includes("未覆盖要求：{gap.requirement_id}")) {
   process.exit(1);
 }
 
+const outputOrder = ["匹配总结", "简历要点", "面试准备", "<RiskWarnings", "<AgentTraceDetails"];
+const outputPositions = outputOrder.map((label) => resultView.indexOf(label));
+if (
+  outputPositions.some((position) => position < 0) ||
+  outputPositions.some((position, index) => index > 0 && position <= outputPositions[index - 1])
+) {
+  console.error(`Result modules must appear in order: ${outputOrder.join(" -> ")}`);
+  process.exit(1);
+}
+
+if (resultView.includes("bullet.evidence_ids")) {
+  console.error("Resume bullets must not render internal evidence IDs.");
+  process.exit(1);
+}
+
+if (!resultView.includes("resume_bullets.slice(0, 3)")) {
+  console.error("Resume bullet output must be limited to 3 items.");
+  process.exit(1);
+}
+
+if (!riskWarnings.includes("riskReport.risks.slice(0, 3)")) {
+  console.error("Risk output must be limited to 3 items.");
+  process.exit(1);
+}
+
+if (!resultView.includes("<details") || resultView.includes("<details open")) {
+  console.error("Agent trace must use a collapsed details element by default.");
+  process.exit(1);
+}
+
+if (page.includes("response.error?.message") || page.includes("response.error?.details")) {
+  console.error("Error UI must map internal workflow errors to controlled user-facing copy.");
+  process.exit(1);
+}
+
 console.log("Frontend structure and Chinese UI copy look ready.");

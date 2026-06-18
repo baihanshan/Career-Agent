@@ -178,5 +178,11 @@ export interface AnalysisResponse {
   analysis_id: string;
   status: AnalysisStatus;
   result?: AnalysisResult | Record<string, unknown> | null;
-  error?: Record<string, unknown> | null;
+  error?: AnalysisError | null;
+}
+
+export interface AnalysisError {
+  code?: string;
+  message?: string;
+  details?: Record<string, unknown> | null;
 }

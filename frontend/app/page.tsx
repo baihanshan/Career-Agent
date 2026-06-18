@@ -23,6 +23,17 @@ const DEFAULT_LLM_SETTINGS: LlmSettingsValue = {
   temperature: 0.2,
 };
 
+const WORKFLOW_ERROR_MESSAGES: Record<string, string> = {
+  JD_ANALYST_ERROR: "岗位描述分析失败，请检查 JD 内容后重试。",
+  LLM_OUTPUT_PARSE_ERROR: "岗位描述暂时无法解析，请调整内容后重试。",
+  RESUME_EVIDENCE_AGENT_ERROR: "未找到足够的项目或实习经历来支撑本次分析。",
+  MATCH_STRATEGIST_ERROR: "岗位匹配分析失败，请稍后重试。",
+  RESUME_BULLET_AGENT_ERROR: "简历要点生成失败，请稍后重试。",
+  INTERVIEW_PREP_AGENT_ERROR: "面试准备生成失败，请稍后重试。",
+  RISK_AUDITOR_AGENT_ERROR: "风险评估失败，请稍后重试。",
+  VECTOR_STORE_ERROR: "个人材料处理失败，请稍后重试。",
+};
+
 export default function Home() {
   const [profileMaterials, setProfileMaterials] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -103,11 +114,7 @@ export default function Home() {
   function handleAnalysisResponse(response: AnalysisResponse) {
     if (response.status === "failed") {
       setStatus("error");
-      setErrorMessage(
-        typeof response.error?.message === "string"
-          ? response.error.message
-          : "分析失败，请检查输入后重试。"
-      );
+      setErrorMessage(friendlyAnalysisError(response.error?.code));
       return;
     }
 
@@ -150,6 +157,12 @@ export default function Home() {
       {result ? <ResultView result={result} /> : <EmptyState />}
     </main>
   );
+}
+
+function friendlyAnalysisError(code?: string) {
+  return code && WORKFLOW_ERROR_MESSAGES[code]
+    ? WORKFLOW_ERROR_MESSAGES[code]
+    : "分析失败，请检查输入后重试。";
 }
 
 function EmptyState() {
