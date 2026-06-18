@@ -68,7 +68,7 @@ Sprint 2 目标是升级为：
 - [x] `resume-evidence-agent.md`：Resume Evidence ReAct Agent
 - [x] `match-strategist-agent.md`：匹配策略与排序
 - [x] `resume-bullet-agent.md`：3 条项目/实习优先简历要点
-- [ ] `interview-prep-agent.md`：轻量 ReAct 面试准备
+- [x] `interview-prep-agent.md`：轻量 ReAct 面试准备
 - [ ] `risk-auditor-agent.md`：ReAct top 3 风险评估
 - [ ] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
 - [ ] `frontend-output.md`：Sprint 2 前端展示模块
@@ -105,7 +105,7 @@ Sprint 2 目标是升级为：
 
 - [ ] 用户输入简历和 JD 后，系统使用 BGE + Chroma 检索项目/实习证据。
 - [ ] 简历要点来自项目/实习，固定 3 条，按 JD 匹配度排序。
-- [ ] 面试准备分为 JD 相关问题和简历深挖问题，并包含完整示范回答。
+- [x] 面试准备分为 JD 相关问题和简历深挖问题，并包含完整示范回答。
 - [ ] 风险提示最多 3 条，具体、可解释、可行动。
 - [ ] 前端不展示 cover letter。
 - [ ] 前端不展示 evidence table。

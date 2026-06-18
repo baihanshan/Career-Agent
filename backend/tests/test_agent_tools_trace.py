@@ -2,7 +2,8 @@ from backend.app.api.schemas import (
     AgentToolResult,
     EvidenceItem,
     GeneratedAssets,
-    InterviewPrepItem,
+    InterviewPrep,
+    InterviewPrepQuestion,
     JDRequirement,
     ResumeBullet,
     ResumeSection,
@@ -166,13 +167,14 @@ def _state_with_sensitive_details() -> WorkflowState:
                 )
                 for index in range(1, 4)
             ],
-            interview_prep=[
-                InterviewPrepItem(
-                    topic="API project",
-                    why_it_matters="Role asks for API development.",
+            interview_prep=InterviewPrep(
+                jd_questions=[
+                    InterviewPrepQuestion(
+                    question="How did you build the API project?",
+                    sample_answer="I built the API and evaluated the implementation tradeoffs.",
                     supporting_evidence_ids=["ev_project"],
-                    prep_suggestion="Discuss implementation tradeoffs.",
-                )
-            ],
+                    )
+                ]
+            ),
         ),
     )

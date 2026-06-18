@@ -215,7 +215,7 @@ def test_project_bullet_contains_project_name_contribution_tech_stack_and_result
     assert "improv" in bullet_text
 
 
-def test_interview_prep_contains_topic_reason_and_suggestion():
+def test_writer_normalizes_legacy_interview_output_for_agent_handoff():
     service = LLMService(
         client=FakeLLMClient(
             responses={"generate_application_assets": _assets_json(risk_level="low")}
@@ -229,10 +229,9 @@ def test_interview_prep_contains_topic_reason_and_suggestion():
         llm_service=service,
     )
 
-    prep_item = assets.interview_prep[0]
-    assert prep_item.topic == "Python API project"
-    assert prep_item.why_it_matters
-    assert prep_item.prep_suggestion
+    prep_item = assets.interview_prep.jd_questions[0]
+    assert prep_item.question == "Python API project"
+    assert prep_item.sample_answer == "Prepare a concise project walkthrough."
 
 
 def test_writer_prompt_contains_evidence_only_constraints():

@@ -18,6 +18,10 @@ from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.service import RetrievalService
 from backend.app.workflow.match_scoring import build_match_strategy, score_matches
+from backend.app.workflow.interview_prep_agent import (
+    InterviewPrepAgent,
+    InterviewPrepAgentError,
+)
 from backend.app.workflow.resume_evidence_agent import (
     ResumeEvidenceAgent,
     ResumeEvidenceAgentError,
@@ -33,6 +37,7 @@ SHORT_PROFILE_CONTENT_CHARS = 40
 class WorkflowServices:
     retrieval_service: RetrievalService
     llm_service: LLMService
+    interview_prep_agent: InterviewPrepAgent | None = None
 
 
 def parse_inputs(request: AnalysisRequest) -> AnalysisState:
@@ -131,6 +136,28 @@ def write_application(state: AnalysisState, services: WorkflowServices) -> Analy
             state,
             WorkflowErrorCode.WRITER_ERROR.value,
             "Application assets could not be generated safely.",
+        )
+
+
+def generate_interview_prep(
+    state: AnalysisState,
+    services: WorkflowServices,
+) -> AnalysisState:
+    try:
+        agent = services.interview_prep_agent or InterviewPrepAgent()
+        return agent.run(state)
+    except InterviewPrepAgentError as exc:
+        return _append_error(
+            state,
+            WorkflowErrorCode.WRITER_ERROR.value,
+            "Interview preparation could not be generated safely.",
+            details={"reason": str(exc)},
+        )
+    except Exception:
+        return _append_error(
+            state,
+            WorkflowErrorCode.WRITER_ERROR.value,
+            "Interview preparation could not be generated safely.",
         )
 
 

@@ -311,7 +311,10 @@ def test_application_assets_normalizes_common_model_schema_variants():
     assert assets.resume_bullets[0].target_requirement_ids == ["req_python"]
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
     assert len(assets.resume_bullets) == 3
-    assert assets.interview_prep[0].prep_suggestion == "Explain the FastAPI project architecture."
+    assert (
+        assets.interview_prep.jd_questions[0].sample_answer
+        == "Explain the FastAPI project architecture."
+    )
 
 
 def test_grounding_evaluation_json_parses_to_evaluation_report():

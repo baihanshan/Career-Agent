@@ -20,12 +20,20 @@
       "risk_level": "low"
     }
   ],
-  "interview_prep": [
-    {
-      "topic": "证据驱动的工作流项目",
-      "why_it_matters": "该岗位关注 Python API、检索能力和确定性 AI 工作流编排。",
-      "supporting_evidence_ids": ["req_python_api:evidence:1"],
-      "prep_suggestion": "准备一段简洁的项目讲解，说明 FastAPI endpoint、检索服务、writer、evaluator 和 LangGraph workflow 如何协作。"
-    }
-  ]
+  "interview_prep": {
+    "jd_questions": [
+      {
+        "question": "请说明你如何满足岗位对 Python API 开发的要求？",
+        "sample_answer": "我在 CareerPilot Agent 项目中使用 FastAPI 构建分析接口，并将检索、生成和评估步骤编排为可测试的工作流。",
+        "supporting_evidence_ids": ["req_python_api:evidence:1"]
+      }
+    ],
+    "resume_deep_dive_questions": [
+      {
+        "question": "请深入介绍 CareerPilot Agent 项目的个人职责、技术难点和结果。",
+        "sample_answer": "我负责 FastAPI endpoint、检索服务、writer、evaluator 与 LangGraph workflow 的集成，并通过证据引用约束生成内容。",
+        "supporting_evidence_ids": ["req_python_api:evidence:1"]
+      }
+    ]
+  }
 }

@@ -25,6 +25,8 @@ Use skills only as supporting context; never generate a standalone bullet from a
 Internship bullets must include company name, project/work content, outcome, and tech stack when present in evidence.
 Project bullets must include project name, personal contribution, tech stack, and result or measurable impact when present in evidence.
 Do not generate a cover letter.
+Set interview_prep to an object with empty jd_questions and resume_deep_dive_questions arrays;
+the Interview Prep Agent generates those answers in the next workflow step.
 Return only JSON matching the GeneratedAssets schema.
 Do not wrap the JSON in markdown fences.
 Do not include explanations before or after the JSON.

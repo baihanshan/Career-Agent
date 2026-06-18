@@ -77,17 +77,21 @@ export interface ResumeBullet {
   risk_level: RiskLevel;
 }
 
-export interface InterviewPrepItem {
-  topic: string;
-  why_it_matters: string;
+export interface InterviewPrepQuestion {
+  question: string;
+  sample_answer: string;
   supporting_evidence_ids: string[];
-  prep_suggestion: string;
+}
+
+export interface InterviewPrep {
+  jd_questions: InterviewPrepQuestion[];
+  resume_deep_dive_questions: InterviewPrepQuestion[];
 }
 
 export interface GeneratedAssets {
   match_summary: string;
   resume_bullets: ResumeBullet[];
-  interview_prep: InterviewPrepItem[];
+  interview_prep: InterviewPrep;
 }
 
 export interface GroundingWarning {

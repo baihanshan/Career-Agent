@@ -10,7 +10,7 @@ from backend.app.api.schemas import (
     EvidenceItem,
     GeneratedAssets,
     GroundingWarning,
-    InterviewPrepItem,
+    InterviewPrep,
     InterviewPrepQuestion,
     MatchStrategy,
     MatchStrategyItem,
@@ -21,7 +21,6 @@ from backend.app.api.schemas import (
     ResumeBullet,
     RiskItem,
     RiskReport,
-    Sprint2GeneratedAssets,
 )
 
 
@@ -105,14 +104,15 @@ def test_generated_assets_accepts_complete_application_payload():
             )
             for index in range(1, 4)
         ],
-        interview_prep=[
-            InterviewPrepItem(
-                topic="Retrieval project",
-                why_it_matters="The role asks for RAG experience.",
+        interview_prep=InterviewPrep(
+            jd_questions=[
+                InterviewPrepQuestion(
+                question="How did you build the retrieval project?",
+                sample_answer="I built and evaluated a grounded retrieval workflow.",
                 supporting_evidence_ids=["ev_1"],
-                prep_suggestion="Prepare a concise project walkthrough.",
-            )
-        ],
+                )
+            ]
+        ),
     )
 
     assert assets.resume_bullets[0].evidence_ids == ["ev_1"]
@@ -166,7 +166,7 @@ def test_sprint2_assets_require_three_resume_bullets_and_no_cover_letter():
         )
         for index in range(3)
     ]
-    assets = Sprint2GeneratedAssets(
+    assets = GeneratedAssets(
         match_summary="Strong project match.",
         resume_bullets=bullets,
         interview_prep={
@@ -190,14 +190,14 @@ def test_sprint2_assets_require_three_resume_bullets_and_no_cover_letter():
     assert len(assets.resume_bullets) == 3
 
     with pytest.raises(ValidationError):
-        Sprint2GeneratedAssets(
+        GeneratedAssets(
             match_summary="Strong project match.",
             resume_bullets=bullets[:2],
             interview_prep=assets.interview_prep,
         )
 
     with pytest.raises(ValidationError):
-        Sprint2GeneratedAssets(
+        GeneratedAssets(
             match_summary="Strong project match.",
             resume_bullets=bullets,
             cover_letter={"opening": "Hello", "body": [], "closing": "Thanks", "evidence_ids": []},

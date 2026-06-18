@@ -10,6 +10,7 @@ from backend.app.workflow.nodes import (
     analyze_jd,
     evaluate_grounding,
     finalize_response,
+    generate_interview_prep,
     index_profile,
     parse_inputs,
     retrieve_evidence,
@@ -26,6 +27,7 @@ WORKFLOW_NODE_ORDER = [
     "retrieve_evidence",
     "score_match",
     "write_application",
+    "generate_interview_prep",
     "evaluate_grounding",
     "finalize_response",
 ]
@@ -53,6 +55,10 @@ def build_analysis_graph(services: WorkflowServices):
         lambda graph_state: _write_application_node(graph_state, services),
     )
     graph.add_node(
+        "generate_interview_prep",
+        lambda graph_state: _generate_interview_prep_node(graph_state, services),
+    )
+    graph.add_node(
         "evaluate_grounding",
         lambda graph_state: _evaluate_grounding_node(graph_state, services),
     )
@@ -78,6 +84,11 @@ def build_analysis_graph(services: WorkflowServices):
     graph.add_edge("score_match", "write_application")
     graph.add_conditional_edges(
         "write_application",
+        _error_route,
+        {"error": "finalize_response", "ok": "generate_interview_prep"},
+    )
+    graph.add_conditional_edges(
+        "generate_interview_prep",
         _error_route,
         {"error": "finalize_response", "ok": "evaluate_grounding"},
     )
@@ -145,6 +156,13 @@ def _evaluate_grounding_node(
     services: WorkflowServices,
 ) -> AnalysisGraphState:
     return {"state": evaluate_grounding(graph_state["state"], services)}
+
+
+def _generate_interview_prep_node(
+    graph_state: AnalysisGraphState,
+    services: WorkflowServices,
+) -> AnalysisGraphState:
+    return {"state": generate_interview_prep(graph_state["state"], services)}
 
 
 def _finalize_response_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:

@@ -204,25 +204,12 @@ class RiskReport(BaseModel):
     risks: list[RiskItem] = Field(default_factory=list, max_length=3)
 
 
-class Sprint2GeneratedAssets(BaseModel):
+class GeneratedAssets(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     match_summary: str
     resume_bullets: list[ResumeBullet] = Field(min_length=3, max_length=3)
     interview_prep: InterviewPrep
-
-
-class InterviewPrepItem(BaseModel):
-    topic: str
-    why_it_matters: str
-    supporting_evidence_ids: list[str]
-    prep_suggestion: str
-
-
-class GeneratedAssets(BaseModel):
-    match_summary: str
-    resume_bullets: list[ResumeBullet] = Field(min_length=3, max_length=3)
-    interview_prep: list[InterviewPrepItem]
 
 
 class GroundingWarning(BaseModel):

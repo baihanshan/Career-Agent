@@ -154,12 +154,8 @@ def _assets_from_context(context: Mapping[str, Any]) -> dict[str, Any]:
             }
             for index in range(1, 4)
         ],
-        "interview_prep": [
-            {
-                "topic": "基于证据的项目经历说明",
-                "why_it_matters": "这个话题可以把你的个人经历和目标岗位要求直接连接起来。",
-                "supporting_evidence_ids": bullet_evidence_ids,
-                "prep_suggestion": "准备一段简洁的项目 walkthrough，并明确说明每个能力点对应的材料证据。",
-            }
-        ],
+        "interview_prep": {
+            "jd_questions": [],
+            "resume_deep_dive_questions": [],
+        },
     }

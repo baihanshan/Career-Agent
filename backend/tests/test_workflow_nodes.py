@@ -253,7 +253,8 @@ def _match(requirement_id: str, evidence_ids: list[str]):
 def _generated_assets():
     from backend.app.api.schemas import (
         GeneratedAssets,
-        InterviewPrepItem,
+        InterviewPrep,
+        InterviewPrepQuestion,
         ResumeBullet,
     )
 
@@ -268,14 +269,15 @@ def _generated_assets():
             )
             for index in range(1, 4)
         ],
-        interview_prep=[
-            InterviewPrepItem(
-                topic="Python API project",
-                why_it_matters="The role asks for API development.",
+        interview_prep=InterviewPrep(
+            jd_questions=[
+                InterviewPrepQuestion(
+                question="How did you build the Python API project?",
+                sample_answer="I built the API and can explain the implementation tradeoffs.",
                 supporting_evidence_ids=["ev_python"],
-                prep_suggestion="Prepare a concise project walkthrough.",
-            )
-        ],
+                )
+            ]
+        ),
     )
 
 

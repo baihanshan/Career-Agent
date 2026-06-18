@@ -86,7 +86,7 @@ def test_short_profile_material_generates_warning_without_blocking_workflow():
                 document_id="doc_short",
                 source_name="short.md",
                 source_type="markdown",
-                content="Python API",
+                content="# 项目\nCareerPilot Python API",
             )
         ],
         job_description="We need Python API experience.",

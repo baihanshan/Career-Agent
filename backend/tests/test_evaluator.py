@@ -3,7 +3,8 @@ import json
 from backend.app.api.schemas import (
     EvidenceItem,
     GeneratedAssets,
-    InterviewPrepItem,
+    InterviewPrep,
+    InterviewPrepQuestion,
     JDRequirement,
     ResumeBullet,
 )
@@ -224,14 +225,15 @@ def _assets(resume_bullets: list[ResumeBullet]) -> GeneratedAssets:
     return GeneratedAssets(
         match_summary="Python API fit.",
         resume_bullets=normalized_bullets,
-        interview_prep=[
-            InterviewPrepItem(
-                topic="Python API project",
-                why_it_matters="The role asks for API development.",
+        interview_prep=InterviewPrep(
+            jd_questions=[
+                InterviewPrepQuestion(
+                question="How did you build the Python API project?",
+                sample_answer="I built the API and can explain its implementation tradeoffs.",
                 supporting_evidence_ids=["ev_python"],
-                prep_suggestion="Prepare a concise project walkthrough.",
-            )
-        ],
+                )
+            ]
+        ),
     )
 
 

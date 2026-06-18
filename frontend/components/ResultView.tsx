@@ -46,15 +46,14 @@ export function ResultView({ result }: ResultViewProps) {
 
         <section className="panel">
           <h2>面试准备</h2>
-          <div className="prep-list">
-            {assets.interview_prep.map((item) => (
-              <article className="prep-item" key={item.topic}>
-                <h3>{item.topic}</h3>
-                <p>{item.why_it_matters}</p>
-                <strong>{item.prep_suggestion}</strong>
-              </article>
-            ))}
-          </div>
+          <InterviewQuestionGroup
+            title="JD 相关问题"
+            questions={assets.interview_prep.jd_questions}
+          />
+          <InterviewQuestionGroup
+            title="简历深挖问题"
+            questions={assets.interview_prep.resume_deep_dive_questions}
+          />
         </section>
       </div>
 
@@ -63,6 +62,26 @@ export function ResultView({ result }: ResultViewProps) {
         <AgentTraceDetails traces={result.agent_traces ?? []} />
         <RiskWarnings report={result.evaluation_report} />
       </aside>
+    </div>
+  );
+}
+
+function InterviewQuestionGroup({
+  title,
+  questions,
+}: {
+  title: string;
+  questions: AnalysisResult["generated_assets"]["interview_prep"]["jd_questions"];
+}) {
+  return (
+    <div className="prep-list">
+      <h3>{title}</h3>
+      {questions.map((item) => (
+        <article className="prep-item" key={item.question}>
+          <h3>{item.question}</h3>
+          <p>{item.sample_answer}</p>
+        </article>
+      ))}
     </div>
   );
 }

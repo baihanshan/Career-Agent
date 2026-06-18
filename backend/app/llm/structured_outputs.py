@@ -254,11 +254,11 @@ def _normalize_generated_assets(
     context: Mapping[str, Any],
 ) -> dict[str, Any]:
     resume_bullets = payload.get("resume_bullets") or payload.get("bullets") or []
-    interview_prep = (
+    raw_interview_prep = (
         payload.get("interview_prep")
         or payload.get("interview_questions")
         or payload.get("interview_tips")
-        or []
+        or {}
     )
     match_summary = (
         _string_value(payload.get("match_summary"))
@@ -273,10 +273,7 @@ def _normalize_generated_assets(
     return {
         "match_summary": match_summary,
         "resume_bullets": _exactly_three_resume_bullets(normalized_bullets, context),
-        "interview_prep": [
-            _normalize_interview_prep_item(item, index, context)
-            for index, item in enumerate(_list_value(interview_prep), start=1)
-        ],
+        "interview_prep": _normalize_interview_prep(raw_interview_prep, context),
     }
 
 
@@ -386,7 +383,31 @@ def _preferred_evidence(context: Mapping[str, Any]) -> dict[str, Any] | None:
     )[0]
 
 
-def _normalize_interview_prep_item(
+def _normalize_interview_prep(
+    value: Any,
+    context: Mapping[str, Any],
+) -> dict[str, Any]:
+    if isinstance(value, dict) and (
+        "jd_questions" in value or "resume_deep_dive_questions" in value
+    ):
+        jd_questions = value.get("jd_questions") or []
+        resume_questions = value.get("resume_deep_dive_questions") or []
+    else:
+        jd_questions = _list_value(value)
+        resume_questions = []
+    return {
+        "jd_questions": [
+            _normalize_interview_question(item, index, context)
+            for index, item in enumerate(_list_value(jd_questions), start=1)
+        ],
+        "resume_deep_dive_questions": [
+            _normalize_interview_question(item, index, context)
+            for index, item in enumerate(_list_value(resume_questions), start=1)
+        ],
+    }
+
+
+def _normalize_interview_question(
     item: Any,
     index: int,
     context: Mapping[str, Any],
@@ -395,29 +416,26 @@ def _normalize_interview_prep_item(
     fallback_evidence_ids = _fallback_evidence_ids(fallback_requirement_ids, context)
     if isinstance(item, str):
         return {
-            "topic": f"面试准备 {index}",
-            "why_it_matters": "这个话题可以把个人经历和目标岗位要求直接连接起来。",
+            "question": f"面试问题 {index}",
+            "sample_answer": item,
             "supporting_evidence_ids": fallback_evidence_ids,
-            "prep_suggestion": item,
         }
     if not isinstance(item, dict):
         item = {}
     return {
-        "topic": _string_value(item.get("topic"))
-        or _string_value(item.get("question"))
-        or f"面试准备 {index}",
-        "why_it_matters": _string_value(item.get("why_it_matters"))
-        or _string_value(item.get("reason"))
-        or "这个话题可以把个人经历和目标岗位要求直接连接起来。",
+        "question": _string_value(item.get("question"))
+        or _string_value(item.get("topic"))
+        or f"面试问题 {index}",
+        "sample_answer": _string_value(item.get("sample_answer"))
+        or _string_value(item.get("answer"))
+        or _string_value(item.get("prep_suggestion"))
+        or _string_value(item.get("suggestion"))
+        or "请结合相关经历说明具体职责、技术决策、结果和复盘。",
         "supporting_evidence_ids": _known_evidence_ids(
             item.get("supporting_evidence_ids") or item.get("evidence_ids") or [],
             context,
         )
         or fallback_evidence_ids,
-        "prep_suggestion": _string_value(item.get("prep_suggestion"))
-        or _string_value(item.get("suggestion"))
-        or _string_value(item.get("answer"))
-        or "准备一段简洁的项目 walkthrough，并明确说明能力点对应的材料证据。",
     }
 
 

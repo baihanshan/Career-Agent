@@ -19,6 +19,7 @@ def test_workflow_graph_defines_expected_node_order():
         "retrieve_evidence",
         "score_match",
         "write_application",
+        "generate_interview_prep",
         "evaluate_grounding",
         "finalize_response",
     ]
@@ -77,9 +78,10 @@ def test_run_analysis_service_returns_chinese_generated_content():
     generated_texts = [
         assets["match_summary"],
         assets["resume_bullets"][0]["text"],
-        assets["interview_prep"][0]["topic"],
-        assets["interview_prep"][0]["why_it_matters"],
-        assets["interview_prep"][0]["prep_suggestion"],
+        assets["interview_prep"]["jd_questions"][0]["question"],
+        assets["interview_prep"]["jd_questions"][0]["sample_answer"],
+        assets["interview_prep"]["resume_deep_dive_questions"][0]["question"],
+        assets["interview_prep"]["resume_deep_dive_questions"][0]["sample_answer"],
         report["risk_summary"],
     ]
 

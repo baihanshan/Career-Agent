@@ -170,9 +170,11 @@ def _get_matched_project_and_internship_evidence(state: WorkflowState) -> str:
 
 
 def _draft_answer(question: str, evidence: EvidenceItem, jd_requirement: JDRequirement) -> str:
+    experience_type = "internship" if evidence.section_type == "internship" else "project"
     return (
-        f"Draft answer outline for '{_summary(question, 60)}': connect "
-        f"{_requirement_label(jd_requirement)} with {_evidence_label(evidence)}."
+        f"Complete sample answer for '{_summary(question, 60)}': In my {experience_type} "
+        f"experience, {evidence.snippet} This demonstrates {jd_requirement.text}. I would "
+        "explain my responsibility, technical decisions, outcome, and reflection."
     )
 
 
