@@ -21,6 +21,7 @@ def test_workflow_graph_defines_expected_node_order():
         "write_application",
         "generate_interview_prep",
         "evaluate_grounding",
+        "audit_risks",
         "finalize_response",
     ]
 

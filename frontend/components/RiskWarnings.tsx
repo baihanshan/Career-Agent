@@ -1,7 +1,8 @@
-import type { EvaluationReport } from "../lib/types";
+import type { EvaluationReport, RiskReport } from "../lib/types";
 
 interface RiskWarningsProps {
   report: EvaluationReport;
+  riskReport?: RiskReport | null;
 }
 
 const severityLabels = {
@@ -10,7 +11,30 @@ const severityLabels = {
   high: "高严重程度",
 } as const;
 
-export function RiskWarnings({ report }: RiskWarningsProps) {
+export function RiskWarnings({ report, riskReport }: RiskWarningsProps) {
+  if (riskReport) {
+    return (
+      <section className="panel risk-panel">
+        <h2>风险提示</h2>
+        <div className="warning-list">
+          {riskReport.risks.map((risk) => (
+            <article className="warning-item" key={`${risk.risk_type}-${risk.title}`}>
+              <span className={`severity severity-${risk.severity}`}>
+                严重程度：{severityLabels[risk.severity]}
+              </span>
+              <strong>{risk.title}</strong>
+              <p>对应 JD 要求：{risk.jd_requirement_summary}</p>
+              <p>简历现状：{risk.resume_current_state}</p>
+              <p>风险原因：{risk.risk_reason}</p>
+              <p>建议：{risk.recommendation}</p>
+            </article>
+          ))}
+          {riskReport.risks.length === 0 ? <p>暂未发现需要优先处理的风险。</p> : null}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel risk-panel">
       <h2>风险提示</h2>

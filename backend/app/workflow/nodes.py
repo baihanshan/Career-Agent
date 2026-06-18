@@ -26,6 +26,10 @@ from backend.app.workflow.resume_evidence_agent import (
     ResumeEvidenceAgent,
     ResumeEvidenceAgentError,
 )
+from backend.app.workflow.risk_auditor_agent import (
+    RiskAuditorAgent,
+    RiskAuditorAgentError,
+)
 from backend.app.workflow.state import AnalysisState
 from backend.app.workflow.writer import write_application as generate_application
 
@@ -38,6 +42,7 @@ class WorkflowServices:
     retrieval_service: RetrievalService
     llm_service: LLMService
     interview_prep_agent: InterviewPrepAgent | None = None
+    risk_auditor_agent: RiskAuditorAgent | None = None
 
 
 def parse_inputs(request: AnalysisRequest) -> AnalysisState:
@@ -184,6 +189,25 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
         )
 
 
+def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
+    try:
+        agent = services.risk_auditor_agent or RiskAuditorAgent()
+        return agent.run(state)
+    except RiskAuditorAgentError as exc:
+        return _append_error(
+            state,
+            WorkflowErrorCode.EVALUATION_ERROR.value,
+            "Risk audit could not be completed safely.",
+            details={"reason": str(exc)},
+        )
+    except Exception:
+        return _append_error(
+            state,
+            WorkflowErrorCode.EVALUATION_ERROR.value,
+            "Risk audit could not be completed safely.",
+        )
+
+
 def finalize_response(state: AnalysisState) -> AnalysisResponse:
     if state.errors:
         return AnalysisResponse(
@@ -219,6 +243,11 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
             "evaluation_report": (
                 state.evaluation_report.model_dump(mode="json")
                 if state.evaluation_report is not None
+                else None
+            ),
+            "risk_report": (
+                state.risk_report.model_dump(mode="json")
+                if state.risk_report is not None
                 else None
             ),
             "processing_warnings": [

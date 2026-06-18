@@ -136,12 +136,27 @@ export interface EvaluationReport {
   overall_status: OverallStatus;
 }
 
+export interface RiskItem {
+  risk_type: "JD 未覆盖" | "简历表述太泛" | "证据不足" | "生成内容可能夸大";
+  title: string;
+  jd_requirement_summary: string;
+  resume_current_state: string;
+  risk_reason: string;
+  recommendation: string;
+  severity: Severity;
+}
+
+export interface RiskReport {
+  risks: RiskItem[];
+}
+
 export interface AnalysisResult {
   jd_requirements: JDRequirement[];
   match_analysis: MatchItem[];
   match_strategy?: MatchStrategy | null;
   generated_assets: GeneratedAssets;
   evaluation_report: EvaluationReport;
+  risk_report?: RiskReport | null;
   processing_warnings?: ProcessingWarning[];
   agent_traces?: AgentTrace[];
 }

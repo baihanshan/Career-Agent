@@ -60,7 +60,7 @@ export function ResultView({ result }: ResultViewProps) {
       <aside className="result-side">
         <ProcessingWarnings warnings={result.processing_warnings ?? []} />
         <AgentTraceDetails traces={result.agent_traces ?? []} />
-        <RiskWarnings report={result.evaluation_report} />
+        <RiskWarnings report={result.evaluation_report} riskReport={result.risk_report} />
       </aside>
     </div>
   );

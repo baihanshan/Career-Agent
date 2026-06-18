@@ -8,6 +8,7 @@ from backend.app.api.schemas import AnalysisRequest, AnalysisResponse
 from backend.app.workflow.nodes import (
     WorkflowServices,
     analyze_jd,
+    audit_risks,
     evaluate_grounding,
     finalize_response,
     generate_interview_prep,
@@ -29,6 +30,7 @@ WORKFLOW_NODE_ORDER = [
     "write_application",
     "generate_interview_prep",
     "evaluate_grounding",
+    "audit_risks",
     "finalize_response",
 ]
 
@@ -62,6 +64,7 @@ def build_analysis_graph(services: WorkflowServices):
         "evaluate_grounding",
         lambda graph_state: _evaluate_grounding_node(graph_state, services),
     )
+    graph.add_node("audit_risks", lambda graph_state: _audit_risks_node(graph_state, services))
     graph.add_node("finalize_response", lambda graph_state: _finalize_response_node(graph_state))
 
     graph.set_entry_point("parse_inputs")
@@ -94,6 +97,11 @@ def build_analysis_graph(services: WorkflowServices):
     )
     graph.add_conditional_edges(
         "evaluate_grounding",
+        _error_route,
+        {"error": "finalize_response", "ok": "audit_risks"},
+    )
+    graph.add_conditional_edges(
+        "audit_risks",
         _error_route,
         {"error": "finalize_response", "ok": "finalize_response"},
     )
@@ -163,6 +171,13 @@ def _generate_interview_prep_node(
     services: WorkflowServices,
 ) -> AnalysisGraphState:
     return {"state": generate_interview_prep(graph_state["state"], services)}
+
+
+def _audit_risks_node(
+    graph_state: AnalysisGraphState,
+    services: WorkflowServices,
+) -> AnalysisGraphState:
+    return {"state": audit_risks(graph_state["state"], services)}
 
 
 def _finalize_response_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:

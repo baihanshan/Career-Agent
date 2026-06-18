@@ -183,6 +183,7 @@ def _check_requirement_coverage(state: WorkflowState, requirement: JDRequirement
         item
         for item in state.retrieved_evidence
         if item.requirement_id == requirement.requirement_id
+        and item.section_type in {"project", "internship"}
     ]
     status = "covered" if matching else "not covered"
     return f"{_requirement_label(requirement)} is {status} by {len(matching)} evidence item(s)."
