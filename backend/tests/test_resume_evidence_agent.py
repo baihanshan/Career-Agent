@@ -82,7 +82,7 @@ def test_retrieve_evidence_node_returns_friendly_error_when_agent_fails():
     assert response.status == "failed"
     assert response.error["code"] == "RESUME_EVIDENCE_AGENT_ERROR"
     assert response.error["message"] == "Could not find usable resume evidence for this JD."
-    assert "no usable evidence" in response.error["details"]["reason"]
+    assert set(response.error) == {"code", "message"}
 
 
 def test_resume_evidence_react_agent_uses_langgraph_create_react_agent(monkeypatch):

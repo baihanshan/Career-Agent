@@ -8,6 +8,7 @@ from backend.app.api.schemas import (
     InterviewPrepQuestion,
     JDRequirement,
 )
+from backend.app.core.errors import AgentExecutionError
 from backend.app.workflow.agent_tools import (
     MAX_REACT_AGENT_STEPS,
     TraceRecorder,
@@ -39,7 +40,7 @@ QuestionGenerator = Callable[
 ]
 
 
-class InterviewPrepAgentError(RuntimeError):
+class InterviewPrepAgentError(AgentExecutionError):
     pass
 
 
@@ -54,7 +55,11 @@ class InterviewPrepAgent:
 
     def run(self, state: AnalysisState) -> AnalysisState:
         if state.generated_assets is None:
-            raise InterviewPrepAgentError("Generated assets are required before interview prep.")
+            raise InterviewPrepAgentError(
+                "Generated assets are required before interview prep.",
+                failed_tool="precondition_check",
+                trace_summary="steps=0 tools=none statuses=none",
+            )
 
         recorder = TraceRecorder(agent_name="interview_prep")
         toolbox = build_agent_toolbox(state, agent_name="interview_prep")
@@ -97,7 +102,9 @@ class InterviewPrepAgent:
                 )
 
         raise InterviewPrepAgentError(
-            f"Interview Prep Agent produced no qualified output after {self.max_steps} attempts."
+            f"Interview Prep Agent produced no qualified output after {self.max_steps} attempts.",
+            failed_tool="draft_answer",
+            trace_summary=recorder.summary(),
         )
 
 

@@ -147,7 +147,7 @@ def test_generate_interview_prep_node_returns_friendly_error_after_agent_failure
     assert response.status == "failed"
     assert response.error["code"] == "INTERVIEW_PREP_AGENT_ERROR"
     assert response.error["message"] == "Interview preparation could not be generated safely."
-    assert "3 attempts" in response.error["details"]["reason"]
+    assert set(response.error) == {"code", "message"}
 
 
 def test_interview_prep_react_agent_uses_only_allowed_tools(monkeypatch):

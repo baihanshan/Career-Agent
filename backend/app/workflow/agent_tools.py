@@ -55,6 +55,11 @@ class TraceRecorder:
         )
         return state.model_copy(update={"agent_traces": [*state.agent_traces, trace]})
 
+    def summary(self) -> str:
+        tools = ",".join(step.tool_name for step in self.steps) or "none"
+        statuses = ",".join(step.status for step in self.steps) or "none"
+        return f"steps={len(self.steps)} tools={tools} statuses={statuses}"
+
 
 def build_agent_toolbox(
     state: WorkflowState,

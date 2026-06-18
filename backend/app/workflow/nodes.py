@@ -88,15 +88,15 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
     try:
         jd_requirements = _extract_jd_requirements_with_retry(state, services)
         return state.model_copy(update={"jd_requirements": jd_requirements})
-    except LLMOutputParseError:
-        logger.exception("agent=jd_analyst failed reason=invalid structured JD output")
+    except LLMOutputParseError as exc:
+        _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
         return _append_error(
             state,
             LLMErrorCode.LLM_OUTPUT_PARSE_ERROR.value,
             "Job description could not be parsed into structured requirements.",
         )
     except Exception as exc:
-        logger.exception("agent=jd_analyst failed reason=%s", exc)
+        _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
         return _append_error(
             state,
             WorkflowErrorCode.JD_ANALYST_ERROR.value,
@@ -109,7 +109,9 @@ def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> Analy
     try:
         return ResumeEvidenceAgent().run(state, services.retrieval_service)
     except ResumeEvidenceAgentError as exc:
-        logger.error("agent=resume_evidence_agent failed reason=%s", exc)
+        _log_agent_failure(
+            "resume_evidence_agent", exc, state, "search_resume_evidence"
+        )
         return _append_error(
             state,
             WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
@@ -117,7 +119,9 @@ def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> Analy
             details={"reason": str(exc)},
         )
     except Exception as exc:
-        logger.exception("agent=resume_evidence_agent failed reason=%s", exc)
+        _log_agent_failure(
+            "resume_evidence_agent", exc, state, "search_resume_evidence"
+        )
         return _append_error(
             state,
             WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
@@ -141,7 +145,7 @@ def score_match(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
             update={"match_analysis": match_analysis, "match_strategy": match_strategy}
         )
     except Exception as exc:
-        logger.exception("agent=match_strategist failed reason=%s", exc)
+        _log_agent_failure("match_strategist", exc, state, "score_matches")
         return _append_error(
             state,
             WorkflowErrorCode.MATCH_STRATEGIST_ERROR.value,
@@ -160,7 +164,9 @@ def write_application(state: AnalysisState, services: WorkflowServices) -> Analy
         )
         return state.model_copy(update={"generated_assets": generated_assets})
     except Exception as exc:
-        logger.exception("agent=resume_bullet_agent failed reason=%s", exc)
+        _log_agent_failure(
+            "resume_bullet_agent", exc, state, "generate_application_assets"
+        )
         return _append_error(
             state,
             WorkflowErrorCode.RESUME_BULLET_AGENT_ERROR.value,
@@ -177,7 +183,7 @@ def generate_interview_prep(
         agent = services.interview_prep_agent or InterviewPrepAgent()
         return agent.run(state)
     except InterviewPrepAgentError as exc:
-        logger.error("agent=interview_prep_agent failed reason=%s", exc)
+        _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")
         return _append_error(
             state,
             WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
@@ -185,7 +191,7 @@ def generate_interview_prep(
             details={"reason": str(exc)},
         )
     except Exception as exc:
-        logger.exception("agent=interview_prep_agent failed reason=%s", exc)
+        _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")
         return _append_error(
             state,
             WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
@@ -210,7 +216,9 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
         )
         return state.model_copy(update={"evaluation_report": evaluation_report})
     except Exception as exc:
-        logger.exception("agent=risk_auditor_agent grounding failed reason=%s", exc)
+        _log_agent_failure(
+            "risk_auditor_agent", exc, state, "check_generated_claim_grounding"
+        )
         return _append_error(
             state,
             WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
@@ -224,7 +232,7 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
         agent = services.risk_auditor_agent or RiskAuditorAgent()
         return agent.run(state)
     except RiskAuditorAgentError as exc:
-        logger.error("agent=risk_auditor_agent failed reason=%s", exc)
+        _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")
         return _append_error(
             state,
             WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
@@ -232,7 +240,7 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
             details={"reason": str(exc)},
         )
     except Exception as exc:
-        logger.exception("agent=risk_auditor_agent failed reason=%s", exc)
+        _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")
         return _append_error(
             state,
             WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
@@ -243,10 +251,11 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
 
 def finalize_response(state: AnalysisState) -> AnalysisResponse:
     if state.errors:
+        error = state.errors[0]
         return AnalysisResponse(
             analysis_id=state.analysis_id,
             status="failed",
-            error=state.errors[0].model_dump(mode="json"),
+            error={"code": error.code, "message": error.message},
         )
 
     return AnalysisResponse(
@@ -312,6 +321,32 @@ def _append_error(
     return state.model_copy(
         update={"errors": [*state.errors, AppError(code=code, message=message, details=details)]}
     )
+
+
+def _log_agent_failure(
+    agent_name: str,
+    exc: Exception,
+    state: AnalysisState,
+    fallback_tool: str,
+) -> None:
+    failed_tool = getattr(exc, "failed_tool", fallback_tool)
+    trace_summary = getattr(exc, "trace_summary", "steps=0 tools=none statuses=none")
+    reason = _safe_log_text(str(exc), state)
+    logger.error(
+        "agent=%s tool=%s reason=%s trace_summary=%s",
+        agent_name,
+        failed_tool,
+        reason,
+        _safe_log_text(trace_summary, state),
+    )
+
+
+def _safe_log_text(value: str, state: AnalysisState, limit: int = 480) -> str:
+    sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    if state.run_config.api_key:
+        sanitized = sanitized.replace(state.run_config.api_key, "[redacted]")
+    sanitized = " ".join(sanitized.split())
+    return sanitized[:limit]
 
 
 def _warnings_for_document(document) -> list[ProcessingWarning]:

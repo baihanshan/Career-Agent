@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -19,6 +20,10 @@ from backend.app.workflow.nodes import (
     write_application,
 )
 from backend.app.workflow.state import AnalysisState
+from backend.app.core.errors import WorkflowWarningCode
+
+
+logger = logging.getLogger(__name__)
 
 
 WORKFLOW_NODE_ORDER = [
@@ -117,7 +122,14 @@ def run_workflow(request: AnalysisRequest, services: WorkflowServices) -> Analys
     finally:
         cleanup = getattr(services.retrieval_service, "cleanup", None)
         if callable(cleanup):
-            cleanup()
+            try:
+                cleanup()
+            except Exception as exc:
+                logger.warning(
+                    "code=%s reason=%s",
+                    WorkflowWarningCode.COLLECTION_CLEANUP_FAILED.value,
+                    _safe_log_text(str(exc)),
+                )
 
 
 def _parse_inputs_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:
@@ -182,3 +194,9 @@ def _finalize_response_node(graph_state: AnalysisGraphState) -> AnalysisGraphSta
 
 def _error_route(graph_state: AnalysisGraphState) -> str:
     return "error" if graph_state["state"].errors else "ok"
+
+
+def _safe_log_text(value: str, limit: int = 320) -> str:
+    sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    sanitized = " ".join(sanitized.split())
+    return sanitized[:limit]

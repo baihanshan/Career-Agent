@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from backend.app.api.schemas import AgentToolResult, EvidenceItem
+from backend.app.core.errors import AgentExecutionError
 from backend.app.workflow.agent_tools import MAX_REACT_AGENT_STEPS, TraceRecorder
 from backend.app.workflow.state import AnalysisState
 
@@ -20,7 +21,7 @@ Return structured evidence items only; do not expose hidden reasoning.
 """.strip()
 
 
-class ResumeEvidenceAgentError(RuntimeError):
+class ResumeEvidenceAgentError(AgentExecutionError):
     pass
 
 
@@ -63,7 +64,9 @@ class ResumeEvidenceAgent:
 
         if not evidence or not usable_evidence_seen:
             raise ResumeEvidenceAgentError(
-                "Resume Evidence Agent found no usable evidence in 3 tool steps."
+                "Resume Evidence Agent found no usable evidence in 3 tool steps.",
+                failed_tool="search_resume_evidence",
+                trace_summary=recorder.summary(),
             )
 
         ranked = _rank_evidence(evidence)

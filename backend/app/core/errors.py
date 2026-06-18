@@ -36,6 +36,23 @@ class WorkflowErrorCode(StrEnum):
     WORKFLOW_ERROR = "WORKFLOW_ERROR"
 
 
+class WorkflowWarningCode(StrEnum):
+    COLLECTION_CLEANUP_FAILED = "COLLECTION_CLEANUP_FAILED"
+
+
+class AgentExecutionError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        failed_tool: str,
+        trace_summary: str,
+    ) -> None:
+        super().__init__(message)
+        self.failed_tool = failed_tool
+        self.trace_summary = trace_summary
+
+
 class AppError(BaseModel):
     code: str
     message: str

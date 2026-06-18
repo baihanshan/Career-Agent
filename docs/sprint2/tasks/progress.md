@@ -72,7 +72,7 @@ Sprint 2 目标是升级为：
 - [x] `risk-auditor-agent.md`：ReAct top 3 风险评估
 - [x] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
 - [x] `frontend-output.md`：Sprint 2 前端展示模块
-- [ ] `error-handling-observability.md`：质量优先错误与日志策略
+- [x] `error-handling-observability.md`：质量优先错误与日志策略
 - [ ] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
 
 ## 新对话启动提示

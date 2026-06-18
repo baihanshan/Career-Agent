@@ -4,6 +4,7 @@ import re
 from collections.abc import Callable
 
 from backend.app.api.schemas import RiskItem, RiskReport
+from backend.app.core.errors import AgentExecutionError
 from backend.app.workflow.agent_tools import (
     MAX_REACT_AGENT_STEPS,
     TraceRecorder,
@@ -35,7 +36,7 @@ _SEVERITY_SCORE = {"high": 3, "medium": 2, "low": 1}
 _IMPORTANCE_SCORE = {"high": 3, "medium": 2, "low": 1}
 
 
-class RiskAuditorAgentError(RuntimeError):
+class RiskAuditorAgentError(AgentExecutionError):
     pass
 
 
@@ -51,7 +52,9 @@ class RiskAuditorAgent:
     def run(self, state: AnalysisState) -> AnalysisState:
         if state.generated_assets is None or state.evaluation_report is None:
             raise RiskAuditorAgentError(
-                "Generated assets and evaluation report are required before risk audit."
+                "Generated assets and evaluation report are required before risk audit.",
+                failed_tool="precondition_check",
+                trace_summary="steps=0 tools=none statuses=none",
             )
 
         recorder = TraceRecorder(agent_name="risk_auditor")
@@ -83,7 +86,9 @@ class RiskAuditorAgent:
                 )
 
         raise RiskAuditorAgentError(
-            f"Risk Auditor Agent produced no qualified output after {self.max_steps} attempts."
+            f"Risk Auditor Agent produced no qualified output after {self.max_steps} attempts.",
+            failed_tool="rank_top_risks",
+            trace_summary=recorder.summary(),
         )
 
 
