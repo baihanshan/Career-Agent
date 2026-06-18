@@ -15,13 +15,12 @@ def test_workflow_graph_defines_expected_node_order():
     assert WORKFLOW_NODE_ORDER == [
         "parse_inputs",
         "index_profile",
-        "analyze_jd",
-        "retrieve_evidence",
-        "score_match",
-        "write_application",
-        "generate_interview_prep",
-        "evaluate_grounding",
-        "audit_risks",
+        "jd_analyst",
+        "resume_evidence_agent",
+        "match_strategist",
+        "resume_bullet_agent",
+        "interview_prep_agent",
+        "risk_auditor_agent",
         "finalize_response",
     ]
 

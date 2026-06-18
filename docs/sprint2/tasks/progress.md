@@ -70,7 +70,7 @@ Sprint 2 目标是升级为：
 - [x] `resume-bullet-agent.md`：3 条项目/实习优先简历要点
 - [x] `interview-prep-agent.md`：轻量 ReAct 面试准备
 - [x] `risk-auditor-agent.md`：ReAct top 3 风险评估
-- [ ] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
+- [x] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
 - [ ] `frontend-output.md`：Sprint 2 前端展示模块
 - [ ] `error-handling-observability.md`：质量优先错误与日志策略
 - [ ] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
@@ -110,6 +110,6 @@ Sprint 2 目标是升级为：
 - [ ] 前端不展示 cover letter。
 - [ ] 前端不展示 evidence table。
 - [ ] 分析过程详情可展开查看 agent trace。
-- [ ] 关键 ReAct Agent 失败时，前端显示用户友好错误，后台保留具体原因。
+- [x] 关键 ReAct Agent 失败时，前端显示用户友好错误，后台保留具体原因。
 - [ ] 后端测试通过。
 - [ ] 前端检查和构建通过。

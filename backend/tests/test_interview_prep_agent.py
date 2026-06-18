@@ -145,7 +145,7 @@ def test_generate_interview_prep_node_returns_friendly_error_after_agent_failure
     response = finalize_response(generate_interview_prep(state, services))
 
     assert response.status == "failed"
-    assert response.error["code"] == "WRITER_ERROR"
+    assert response.error["code"] == "INTERVIEW_PREP_AGENT_ERROR"
     assert response.error["message"] == "Interview preparation could not be generated safely."
     assert "3 attempts" in response.error["details"]["reason"]
 

@@ -173,7 +173,7 @@ def test_audit_risks_node_returns_friendly_error_after_agent_failure():
     response = finalize_response(failed_state)
 
     assert response.status == "failed"
-    assert response.error["code"] == "EVALUATION_ERROR"
+    assert response.error["code"] == "RISK_AUDITOR_AGENT_ERROR"
     assert response.error["message"] == "Risk audit could not be completed safely."
     assert "3 attempts" in response.error["details"]["reason"]
 

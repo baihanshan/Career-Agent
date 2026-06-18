@@ -120,7 +120,7 @@ def test_missing_resume_evidence_returns_user_friendly_retrieval_error():
     response = run_workflow(request=request, services=_services())
 
     assert response.status == "failed"
-    assert response.error["code"] == "RETRIEVAL_ERROR"
+    assert response.error["code"] == "RESUME_EVIDENCE_AGENT_ERROR"
     assert response.error["message"] == "Could not find usable resume evidence for this JD."
 
 

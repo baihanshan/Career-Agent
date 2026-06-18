@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -35,6 +36,7 @@ from backend.app.workflow.writer import write_application as generate_applicatio
 
 
 SHORT_PROFILE_CONTENT_CHARS = 40
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -87,10 +89,19 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
         jd_requirements = _extract_jd_requirements_with_retry(state, services)
         return state.model_copy(update={"jd_requirements": jd_requirements})
     except LLMOutputParseError:
+        logger.exception("agent=jd_analyst failed reason=invalid structured JD output")
         return _append_error(
             state,
             LLMErrorCode.LLM_OUTPUT_PARSE_ERROR.value,
             "Job description could not be parsed into structured requirements.",
+        )
+    except Exception as exc:
+        logger.exception("agent=jd_analyst failed reason=%s", exc)
+        return _append_error(
+            state,
+            WorkflowErrorCode.JD_ANALYST_ERROR.value,
+            "Job description analysis failed. Please try again.",
+            details={"reason": str(exc)},
         )
 
 
@@ -98,33 +109,45 @@ def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> Analy
     try:
         return ResumeEvidenceAgent().run(state, services.retrieval_service)
     except ResumeEvidenceAgentError as exc:
+        logger.error("agent=resume_evidence_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.RETRIEVAL_ERROR.value,
+            WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
             "Could not find usable resume evidence for this JD.",
             details={"reason": str(exc)},
         )
-    except Exception:
+    except Exception as exc:
+        logger.exception("agent=resume_evidence_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.RETRIEVAL_ERROR.value,
+            WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
             "Evidence retrieval failed. Please try again.",
+            details={"reason": str(exc)},
         )
 
 
 def score_match(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
-    match_analysis = score_matches(
-        requirements=state.jd_requirements,
-        evidence_items=state.retrieved_evidence,
-    )
-    match_strategy = build_match_strategy(
-        requirements=state.jd_requirements,
-        evidence_items=state.retrieved_evidence,
-        match_items=match_analysis,
-    )
-    return state.model_copy(
-        update={"match_analysis": match_analysis, "match_strategy": match_strategy}
-    )
+    try:
+        match_analysis = score_matches(
+            requirements=state.jd_requirements,
+            evidence_items=state.retrieved_evidence,
+        )
+        match_strategy = build_match_strategy(
+            requirements=state.jd_requirements,
+            evidence_items=state.retrieved_evidence,
+            match_items=match_analysis,
+        )
+        return state.model_copy(
+            update={"match_analysis": match_analysis, "match_strategy": match_strategy}
+        )
+    except Exception as exc:
+        logger.exception("agent=match_strategist failed reason=%s", exc)
+        return _append_error(
+            state,
+            WorkflowErrorCode.MATCH_STRATEGIST_ERROR.value,
+            "Match strategy could not be generated safely.",
+            details={"reason": str(exc)},
+        )
 
 
 def write_application(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
@@ -136,11 +159,13 @@ def write_application(state: AnalysisState, services: WorkflowServices) -> Analy
             llm_service=services.llm_service,
         )
         return state.model_copy(update={"generated_assets": generated_assets})
-    except Exception:
+    except Exception as exc:
+        logger.exception("agent=resume_bullet_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.WRITER_ERROR.value,
+            WorkflowErrorCode.RESUME_BULLET_AGENT_ERROR.value,
             "Application assets could not be generated safely.",
+            details={"reason": str(exc)},
         )
 
 
@@ -152,17 +177,20 @@ def generate_interview_prep(
         agent = services.interview_prep_agent or InterviewPrepAgent()
         return agent.run(state)
     except InterviewPrepAgentError as exc:
+        logger.error("agent=interview_prep_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.WRITER_ERROR.value,
+            WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
             "Interview preparation could not be generated safely.",
             details={"reason": str(exc)},
         )
-    except Exception:
+    except Exception as exc:
+        logger.exception("agent=interview_prep_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.WRITER_ERROR.value,
+            WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
             "Interview preparation could not be generated safely.",
+            details={"reason": str(exc)},
         )
 
 
@@ -181,11 +209,13 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
             llm_service=services.llm_service,
         )
         return state.model_copy(update={"evaluation_report": evaluation_report})
-    except Exception:
+    except Exception as exc:
+        logger.exception("agent=risk_auditor_agent grounding failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.EVALUATION_ERROR.value,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
             "Generated assets could not be evaluated.",
+            details={"reason": str(exc)},
         )
 
 
@@ -194,17 +224,20 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
         agent = services.risk_auditor_agent or RiskAuditorAgent()
         return agent.run(state)
     except RiskAuditorAgentError as exc:
+        logger.error("agent=risk_auditor_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.EVALUATION_ERROR.value,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
             "Risk audit could not be completed safely.",
             details={"reason": str(exc)},
         )
-    except Exception:
+    except Exception as exc:
+        logger.exception("agent=risk_auditor_agent failed reason=%s", exc)
         return _append_error(
             state,
-            WorkflowErrorCode.EVALUATION_ERROR.value,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
             "Risk audit could not be completed safely.",
+            details={"reason": str(exc)},
         )
 
 
