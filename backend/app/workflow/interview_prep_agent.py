@@ -67,11 +67,13 @@ class InterviewPrepAgent:
             item for item in state.jd_requirements if item.importance == "high"
         ]
         requirements = high_priority_requirements or state.jd_requirements
-        evidence = [
-            item
-            for item in state.retrieved_evidence
-            if item.section_type in {"project", "internship"}
-        ]
+        evidence = _unique_evidence_by_chunk(
+            [
+                item
+                for item in state.retrieved_evidence
+                if item.section_type in {"project", "internship"}
+            ]
+        )
 
         for _attempt in range(1, self.max_steps + 1):
             recorder.record(toolbox["get_high_priority_jd_requirements"]())
@@ -171,6 +173,17 @@ def _question_count(item_count: int) -> int:
     if item_count >= 3:
         return min(item_count, 4)
     return min(item_count, 2)
+
+
+def _unique_evidence_by_chunk(evidence: list[EvidenceItem]) -> list[EvidenceItem]:
+    unique = []
+    seen_chunk_ids = set()
+    for item in evidence:
+        if item.chunk_id in seen_chunk_ids:
+            continue
+        seen_chunk_ids.add(item.chunk_id)
+        unique.append(item)
+    return unique
 
 
 def _matching_evidence(

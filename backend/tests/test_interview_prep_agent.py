@@ -84,6 +84,25 @@ def test_interview_prep_scales_question_counts_for_richer_inputs():
     assert 3 <= len(prep.resume_deep_dive_questions) <= 4
 
 
+def test_interview_prep_deduplicates_deep_dive_questions_for_same_chunk():
+    first = _evidence("ev_project_python", "project", "CareerPilot project")
+    duplicate_chunk = _evidence(
+        "ev_project_api",
+        "project",
+        "CareerPilot project",
+    ).model_copy(update={"chunk_id": first.chunk_id})
+    state = _state(
+        requirements=[_requirement("req_python", "Python API development")],
+        evidence=[first, duplicate_chunk],
+    )
+
+    next_state = InterviewPrepAgent().run(state)
+
+    questions = next_state.generated_assets.interview_prep.resume_deep_dive_questions
+    assert len(questions) == 1
+    assert questions[0].supporting_evidence_ids == ["ev_project_python"]
+
+
 def test_interview_prep_fails_after_three_invalid_attempts():
     attempts = []
 

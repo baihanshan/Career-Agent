@@ -92,6 +92,24 @@ if (!resultView.includes("<details") || resultView.includes("<details open")) {
   process.exit(1);
 }
 
+if (
+  resultView.includes("key={item.question}") ||
+  !resultView.includes("item.supporting_evidence_ids")
+) {
+  console.error("Interview question keys must remain unique when question text repeats.");
+  process.exit(1);
+}
+
+if (
+  riskWarnings.includes('key={`${risk.risk_type}-${risk.title}`}') ||
+  !riskWarnings.includes(
+    'key={`${risk.risk_type}-${risk.title}-${risk.jd_requirement_summary}`}'
+  )
+) {
+  console.error("Risk keys must distinguish identical titles for different JD requirements.");
+  process.exit(1);
+}
+
 if (page.includes("response.error?.message") || page.includes("response.error?.details")) {
   console.error("Error UI must map internal workflow errors to controlled user-facing copy.");
   process.exit(1);

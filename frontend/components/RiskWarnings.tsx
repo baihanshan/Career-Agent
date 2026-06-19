@@ -18,7 +18,10 @@ export function RiskWarnings({ report, riskReport }: RiskWarningsProps) {
         <h2>风险提示</h2>
         <div className="warning-list">
           {riskReport.risks.slice(0, 3).map((risk) => (
-            <article className="warning-item" key={`${risk.risk_type}-${risk.title}`}>
+            <article
+              className="warning-item"
+              key={`${risk.risk_type}-${risk.title}-${risk.jd_requirement_summary}`}
+            >
               <span className={`severity severity-${risk.severity}`}>
                 严重程度：{severityLabels[risk.severity]}
               </span>
