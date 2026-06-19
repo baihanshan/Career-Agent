@@ -15,6 +15,15 @@ class DocumentProcessingErrorCode(StrEnum):
     PROFILE_CONTENT_SHORT = "PROFILE_CONTENT_SHORT"
 
 
+class PDFProcessingErrorCode(StrEnum):
+    PDF_INVALID_TYPE = "PDF_INVALID_TYPE"
+    PDF_TOO_LARGE = "PDF_TOO_LARGE"
+    PDF_EMPTY = "PDF_EMPTY"
+    PDF_ENCRYPTED = "PDF_ENCRYPTED"
+    PDF_CORRUPT = "PDF_CORRUPT"
+    PDF_NO_TEXT = "PDF_NO_TEXT"
+
+
 class VectorStoreErrorCode(StrEnum):
     VECTOR_STORE_ERROR = "VECTOR_STORE_ERROR"
 

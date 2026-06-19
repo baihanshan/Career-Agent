@@ -142,3 +142,75 @@ def test_skills_heading_is_not_misclassified_as_project_or_internship():
     assert chunks[0].section_type == "skill"
     assert chunks[0].project_name is None
     assert chunks[0].company_name is None
+
+
+def test_plain_text_standalone_resume_headings_create_sections():
+    document = ProfileDocument(
+        document_id="doc_plain_resume",
+        source_name="resume.pdf",
+        source_type="text",
+        content=(
+            "教育经历\nUNSW 人工智能硕士\n"
+            "项目经历\n语义分割项目\n"
+            "实习经历\n腾讯人工智能实习生\n"
+            "技能\nPython、PyTorch\n"
+            "奖项\n校级奖学金"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+    sections = {chunk.section_title: chunk.section_type for chunk in chunks}
+
+    assert sections == {
+        "教育经历": "education",
+        "项目经历": "project",
+        "实习经历": "internship",
+        "技能": "skill",
+        "奖项": "other",
+    }
+
+
+def test_markdown_source_accepts_unprefixed_resume_headings():
+    document = ProfileDocument(
+        document_id="doc_pasted_resume",
+        source_name="profile.md",
+        source_type="markdown",
+        content="项目经历\n模型项目\n实习经历\n人工智能实习生",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert [chunk.section_type for chunk in chunks] == ["project", "internship"]
+
+
+def test_plain_text_english_resume_headings_create_sections():
+    document = ProfileDocument(
+        document_id="doc_english_resume",
+        source_name="resume.pdf",
+        source_type="text",
+        content="Education\nMSc AI\nProjects\nClassifier\nWork Experience\nAI Intern\nSkills\nPython",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert [chunk.section_type for chunk in chunks] == [
+        "education",
+        "project",
+        "internship",
+        "skill",
+    ]
+
+
+def test_heading_keyword_inside_body_does_not_split_section():
+    document = ProfileDocument(
+        document_id="doc_no_false_heading",
+        source_name="resume.txt",
+        source_type="text",
+        content="项目经历\n完成模型训练，并参与项目经历复盘。",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert len(chunks) == 1
+    assert chunks[0].section_type == "project"
+    assert "参与项目经历复盘" in chunks[0].text

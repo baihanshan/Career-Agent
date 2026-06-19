@@ -75,7 +75,7 @@ Sprint 2 目标是升级为：
 - [x] `frontend-output.md`：Sprint 2 前端展示模块
 - [x] `error-handling-observability.md`：质量优先错误与日志策略
 - [x] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
-- [ ] `pdf-resume-upload.md`：文字型 PDF 上传、文本回填与纯文本简历标题识别
+- [x] `pdf-resume-upload.md`：文字型 PDF 上传、文本回填与纯文本简历标题识别
 
 ## 新对话启动提示
 
@@ -115,5 +115,5 @@ Sprint 2 目标是升级为：
 - [x] 关键 ReAct Agent 失败时，前端显示用户友好错误，后台保留具体原因。
 - [x] 后端测试通过。
 - [x] 前端检查和构建通过。
-- [ ] 用户可上传不超过 10 MB 的文字型 PDF，解析文本可编辑且原文件不落盘。
-- [ ] PDF 或粘贴纯文本中的项目、实习、教育和技能标题能被正确结构化。
+- [x] 用户可上传不超过 10 MB 的文字型 PDF，解析文本可编辑且原文件不落盘。
+- [x] PDF 或粘贴纯文本中的项目、实习、教育和技能标题能被正确结构化。

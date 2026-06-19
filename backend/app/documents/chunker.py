@@ -9,6 +9,29 @@ from backend.app.documents.parser import normalize_text
 
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _PARAGRAPH_SPLIT_PATTERN = re.compile(r"\n\s*\n")
+_PLAIN_RESUME_HEADINGS = {
+    "教育经历",
+    "教育背景",
+    "项目经历",
+    "项目经验",
+    "实习经历",
+    "工作经历",
+    "工作经验",
+    "技能",
+    "专业技能",
+    "奖项",
+    "荣誉奖项",
+    "其他",
+    "education",
+    "projects",
+    "project experience",
+    "internship",
+    "experience",
+    "work experience",
+    "skills",
+    "awards",
+    "other",
+}
 _METADATA_PATTERNS = {
     "company_name": re.compile(r"^(?:Company|公司|单位)[:：]\s*(.+?)\s*$", re.IGNORECASE),
     "role_title": re.compile(r"^(?:Role|Title|岗位|职位)[:：]\s*(.+?)\s*$", re.IGNORECASE),
@@ -65,14 +88,18 @@ def chunk_profile_document(document: ProfileDocument, max_chars: int = 800) -> l
 
 
 def _plain_text_blocks(content: str) -> list[_TextBlock]:
-    return [
-        _TextBlock(text=paragraph.strip(), section_label=None)
-        for paragraph in content.split("\n\n")
-        if paragraph.strip()
-    ]
+    return _structured_resume_blocks(content, allow_markdown_headings=False)
 
 
 def _markdown_blocks(content: str) -> list[_TextBlock]:
+    return _structured_resume_blocks(content, allow_markdown_headings=True)
+
+
+def _structured_resume_blocks(
+    content: str,
+    *,
+    allow_markdown_headings: bool,
+) -> list[_TextBlock]:
     blocks: list[_TextBlock] = []
     current_section_title: str | None = None
     section_lines: list[str] = []
@@ -115,16 +142,29 @@ def _markdown_blocks(content: str) -> list[_TextBlock]:
             )
 
     for line in content.split("\n"):
-        heading_match = _MARKDOWN_HEADING_PATTERN.match(line)
-        if heading_match:
+        heading = _heading_for_line(line, allow_markdown_headings=allow_markdown_headings)
+        if heading is not None:
             flush_section()
-            current_section_title = heading_match.group(2).strip()
+            current_section_title = heading
             continue
 
         section_lines.append(line.rstrip())
 
     flush_section()
     return blocks
+
+
+def _heading_for_line(line: str, *, allow_markdown_headings: bool) -> str | None:
+    stripped = line.strip()
+    if allow_markdown_headings:
+        heading_match = _MARKDOWN_HEADING_PATTERN.match(stripped)
+        if heading_match:
+            return heading_match.group(2).strip()
+
+    normalized = re.sub(r"\s+", " ", stripped).lower()
+    if normalized in _PLAIN_RESUME_HEADINGS:
+        return stripped
+    return None
 
 
 def _split_long_text(text: str, max_chars: int) -> list[str]:
@@ -148,7 +188,13 @@ def _section_type_for_heading(heading: str | None) -> ProfileSectionType:
         return "skill"
     if "教育" in compact or "education" in words:
         return "education"
-    if "实习" in compact or "internship" in words or words in {"experience", "work experience"}:
+    if (
+        "实习" in compact
+        or "工作经历" in compact
+        or "工作经验" in compact
+        or "internship" in words
+        or words in {"experience", "work experience"}
+    ):
         return "internship"
     if "项目" in compact or "project" in words:
         return "project"

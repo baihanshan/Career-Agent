@@ -9,7 +9,12 @@ import { ProfileInput } from "../components/ProfileInput";
 import { ResultView } from "../components/ResultView";
 import { RunStatus } from "../components/RunStatus";
 import { runAnalysis } from "../lib/api";
-import type { AnalysisResult, AnalysisResponse } from "../lib/types";
+import type {
+  AnalysisResult,
+  AnalysisResponse,
+  PDFParseResponse,
+  SourceType,
+} from "../lib/types";
 
 type UiStatus = "idle" | "loading" | "success" | "error";
 
@@ -36,6 +41,10 @@ const WORKFLOW_ERROR_MESSAGES: Record<string, string> = {
 
 export default function Home() {
   const [profileMaterials, setProfileMaterials] = useState("");
+  const [profileSource, setProfileSource] = useState<{
+    sourceName: string;
+    sourceType: SourceType;
+  }>({ sourceName: "profile.md", sourceType: "markdown" });
   const [jobDescription, setJobDescription] = useState("");
   const [llmSettings, setLlmSettings] = useState<LlmSettingsValue>(DEFAULT_LLM_SETTINGS);
   const [status, setStatus] = useState<UiStatus>("idle");
@@ -84,8 +93,8 @@ export default function Home() {
       const response = await runAnalysis({
         profile_documents: [
           {
-            source_name: "profile.md",
-            source_type: "markdown",
+            source_name: profileSource.sourceName,
+            source_type: profileSource.sourceType,
             content: profileMaterials,
           },
         ],
@@ -142,7 +151,14 @@ export default function Home() {
 
       <form className="input-grid" onSubmit={handleSubmit}>
         <LlmSettings value={llmSettings} onChange={setLlmSettings} />
-        <ProfileInput value={profileMaterials} onChange={setProfileMaterials} />
+        <ProfileInput
+          value={profileMaterials}
+          onChange={setProfileMaterials}
+          onPdfParsed={(parsed: PDFParseResponse) => {
+            setProfileMaterials(parsed.text);
+            setProfileSource({ sourceName: parsed.source_name, sourceType: "text" });
+          }}
+        />
         <JobDescriptionInput value={jobDescription} onChange={setJobDescription} />
         <div className="form-actions">
           <button type="submit" disabled={!canSubmit || status === "loading"}>

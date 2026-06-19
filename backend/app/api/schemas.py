@@ -255,6 +255,20 @@ class AnalysisRequest(BaseModel):
         return self
 
 
+class PDFParseResponse(BaseModel):
+    source_name: str
+    page_count: int = Field(ge=1)
+    text: str
+
+    @field_validator("source_name", "text")
+    @classmethod
+    def require_pdf_parse_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Field must not be empty.")
+        return stripped
+
+
 class AnalysisResponse(BaseModel):
     analysis_id: str
     status: AnalysisStatus

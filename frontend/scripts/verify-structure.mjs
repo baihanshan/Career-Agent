@@ -23,6 +23,8 @@ if (missing.length > 0) {
 }
 
 const page = readFileSync(join(process.cwd(), "app/page.tsx"), "utf8");
+const profileInput = readFileSync(join(process.cwd(), "components/ProfileInput.tsx"), "utf8");
+const api = readFileSync(join(process.cwd(), "lib/api.ts"), "utf8");
 const requiredCopy = [
   "个人材料",
   "目标岗位 JD",
@@ -92,6 +94,20 @@ if (!resultView.includes("<details") || resultView.includes("<details open")) {
 
 if (page.includes("response.error?.message") || page.includes("response.error?.details")) {
   console.error("Error UI must map internal workflow errors to controlled user-facing copy.");
+  process.exit(1);
+}
+
+const pdfUploadMarkers = [
+  'accept="application/pdf,.pdf"',
+  "正在解析 PDF",
+  "PDF_NO_TEXT",
+];
+const missingPdfMarkers = pdfUploadMarkers.filter(
+  (marker) => !profileInput.includes(marker)
+);
+
+if (missingPdfMarkers.length > 0 || !api.includes("parsePdfResume")) {
+  console.error(`Missing PDF upload behavior: ${missingPdfMarkers.join(", ")}`);
   process.exit(1);
 }
 

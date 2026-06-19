@@ -16,12 +16,24 @@ from backend.app.api.schemas import (
     MatchStrategyItem,
     JDRequirement,
     MatchItem,
+    PDFParseResponse,
     ResumeSection,
     ResumeSectionMetadata,
     ResumeBullet,
     RiskItem,
     RiskReport,
 )
+
+
+def test_pdf_parse_response_requires_positive_page_count_and_text():
+    response = PDFParseResponse(
+        source_name="resume.pdf",
+        page_count=2,
+        text="项目经历\nBuilt a model.",
+    )
+
+    assert response.page_count == 2
+    assert response.text.startswith("项目经历")
 
 
 def test_profile_document_rejects_empty_content():

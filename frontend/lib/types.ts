@@ -22,6 +22,19 @@ export interface ProfileDocument {
   created_at?: string;
 }
 
+export interface PDFParseResponse {
+  source_name: string;
+  page_count: number;
+  text: string;
+}
+
+export interface PDFParseError {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
 export interface ProfileChunk {
   chunk_id: string;
   document_id: string;

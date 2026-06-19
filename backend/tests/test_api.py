@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
@@ -98,3 +99,81 @@ def test_analysis_calls_workflow_service(monkeypatch):
         "result": {"mock": True},
         "error": None,
     }
+
+
+def test_parse_pdf_returns_extracted_text(monkeypatch):
+    from backend.app.api import routes
+
+    monkeypatch.setattr(
+        routes,
+        "parse_pdf_bytes",
+        lambda content: (2, "项目经历\n模型项目"),
+    )
+    response = TestClient(create_app()).post(
+        "/documents/parse-pdf",
+        files={"file": ("resume.pdf", b"%PDF fixture", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "source_name": "resume.pdf",
+        "page_count": 2,
+        "text": "项目经历\n模型项目",
+    }
+
+
+def test_parse_pdf_rejects_non_pdf_without_calling_parser(monkeypatch):
+    from backend.app.api import routes
+
+    monkeypatch.setattr(
+        routes,
+        "parse_pdf_bytes",
+        lambda content: pytest.fail("parser must not be called"),
+    )
+    response = TestClient(create_app()).post(
+        "/documents/parse-pdf",
+        files={"file": ("resume.txt", b"plain text", "text/plain")},
+    )
+
+    assert response.status_code == 415
+    assert response.json()["error"]["code"] == "PDF_INVALID_TYPE"
+
+
+def test_parse_pdf_rejects_empty_file():
+    response = TestClient(create_app()).post(
+        "/documents/parse-pdf",
+        files={"file": ("resume.pdf", b"", "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "PDF_EMPTY"
+
+
+def test_parse_pdf_rejects_file_over_limit(monkeypatch):
+    from backend.app.api import routes
+
+    monkeypatch.setattr(routes, "MAX_PDF_BYTES", 4)
+    response = TestClient(create_app()).post(
+        "/documents/parse-pdf",
+        files={"file": ("resume.pdf", b"12345", "application/pdf")},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "PDF_TOO_LARGE"
+
+
+def test_parse_pdf_maps_document_error(monkeypatch):
+    from backend.app.api import routes
+    from backend.app.documents.pdf_parser import PDFDocumentError
+
+    def reject_no_text(content):
+        raise PDFDocumentError("PDF_NO_TEXT", "PDF contains no extractable text.")
+
+    monkeypatch.setattr(routes, "parse_pdf_bytes", reject_no_text)
+    response = TestClient(create_app()).post(
+        "/documents/parse-pdf",
+        files={"file": ("resume.pdf", b"%PDF fixture", "application/pdf")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "PDF_NO_TEXT"
