@@ -73,7 +73,7 @@ Sprint 2 目标是升级为：
 - [x] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
 - [x] `frontend-output.md`：Sprint 2 前端展示模块
 - [x] `error-handling-observability.md`：质量优先错误与日志策略
-- [ ] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
+- [x] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
 
 ## 新对话启动提示
 
@@ -103,13 +103,13 @@ Sprint 2 目标是升级为：
 
 ## 总体验收
 
-- [ ] 用户输入简历和 JD 后，系统使用 BGE + Chroma 检索项目/实习证据。
-- [ ] 简历要点来自项目/实习，固定 3 条，按 JD 匹配度排序。
+- [x] 用户输入简历和 JD 后，系统使用 BGE + Chroma 检索项目/实习证据。
+- [x] 简历要点来自项目/实习，固定 3 条，按 JD 匹配度排序。
 - [x] 面试准备分为 JD 相关问题和简历深挖问题，并包含完整示范回答。
 - [x] 风险提示最多 3 条，具体、可解释、可行动。
 - [x] 前端不展示 cover letter。
 - [x] 前端不展示 evidence table。
 - [x] 分析过程详情可展开查看 agent trace。
 - [x] 关键 ReAct Agent 失败时，前端显示用户友好错误，后台保留具体原因。
-- [ ] 后端测试通过。
-- [ ] 前端检查和构建通过。
+- [x] 后端测试通过。
+- [x] 前端检查和构建通过。

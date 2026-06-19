@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from backend.app.api.schemas import EvaluationReport, GeneratedAssets, JDRequirement
+from backend.app.api.schemas import (
+    AgentToolResult,
+    EvaluationReport,
+    GeneratedAssets,
+    JDRequirement,
+)
 from backend.app.llm.client import FakeLLMClient
 
 
@@ -37,6 +42,14 @@ def load_fake_llm_client() -> FakeLLMClient:
             "evaluate_claim_grounding": _read_text("fake_llm_evaluation.json"),
         }
     )
+
+
+def load_react_tool_call_fixtures() -> dict[str, list[AgentToolResult]]:
+    payload = _read_json("react_tool_calls.json")
+    return {
+        agent_name: [AgentToolResult.model_validate(item) for item in steps]
+        for agent_name, steps in payload.items()
+    }
 
 
 def _read_text(filename: str) -> str:

@@ -266,9 +266,6 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
             "jd_requirements": [
                 item.model_dump(mode="json") for item in state.jd_requirements
             ],
-            "evidence_table": [
-                item.model_dump(mode="json") for item in state.retrieved_evidence
-            ],
             "match_analysis": [
                 item.model_dump(mode="json") for item in state.match_analysis
             ],

@@ -30,7 +30,7 @@ def test_sample_profile_and_jd_run_to_final_response():
 
     assert response.status == "completed"
     assert response.result["jd_requirements"][0]["requirement_id"] == "req_python"
-    assert response.result["evidence_table"][0]["chunk_id"] == "doc_resume:chunk:1"
+    assert "evidence_table" not in response.result
     assert response.result["match_analysis"][0]["match_level"] == "strong"
     assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"]
     assert response.result["evaluation_report"]["overall_status"] in {
@@ -64,7 +64,7 @@ def test_run_analysis_service_uses_workflow_result():
 
     assert response["status"] == "completed"
     assert response["result"]["jd_requirements"]
-    assert response["result"]["evidence_table"]
+    assert "evidence_table" not in response["result"]
     assert response["result"]["generated_assets"]["resume_bullets"][0]["evidence_ids"]
 
 
