@@ -30,7 +30,7 @@
 ## 模块进度
 
 - [x] `react-model-runtime.md`：支持工具调用的 ReAct ChatModel 和测试模型。
-- [ ] `domain-models.md`：Experience、EvidenceSelection、NumericClaim、QualityIssue 等内部模型。
+- [x] `domain-models.md`：Experience、EvidenceSelection、NumericClaim、QualityIssue 等内部模型。
 - [ ] `experience-structure.md`：按单个项目/实习生成 ExperienceRecord 和检索单元。
 - [ ] `requirement-semantics.md`：JD verification mode、interviewability、capability tags 和 OR 逻辑。
 - [ ] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
@@ -49,7 +49,7 @@
 ### Phase 1：运行时与模型边界
 
 - [x] ReAct ChatModel 可用且不支持 tool calling 时快速失败。
-- [ ] Internal domain models 完成。
+- [x] Internal domain models 完成。
 - [ ] Internal/Public output 边界完成。
 
 ### Phase 2：结构化简历、JD 与工具
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md` 已完成；下一任务为 `domain-models.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md` 已完成；下一任务为 `experience-structure.md`，尚未开始。
