@@ -5,6 +5,10 @@ from dataclasses import dataclass
 
 from backend.app.documents.models import ProfileChunk, ProfileDocument, ProfileSectionType
 from backend.app.documents.parser import normalize_text
+from backend.app.documents.experience_parser import (
+    extract_experience_header,
+    split_experience_text,
+)
 
 
 _MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
@@ -66,6 +70,9 @@ def chunk_profile_document(document: ProfileDocument, max_chars: int = 800) -> l
     )
     pieces: list[tuple[str, _TextBlock]] = []
     for block in blocks:
+        if block.section_type in {"project", "internship"}:
+            pieces.append((block.text, block))
+            continue
         for text in _split_long_text(block.text, max_chars=max_chars):
             pieces.append((text, block))
 
@@ -119,15 +126,21 @@ def _structured_resume_blocks(
             text=section_text,
         )
         if section_type in {"project", "internship"}:
-            blocks.append(
-                _TextBlock(
-                    text=section_text,
-                    section_label=current_section_title,
+            for experience_text in split_experience_text(section_text):
+                metadata = _extract_metadata(
                     section_type=section_type,
                     section_title=current_section_title,
-                    **metadata,
+                    text=experience_text,
                 )
-            )
+                blocks.append(
+                    _TextBlock(
+                        text=experience_text,
+                        section_label=current_section_title,
+                        section_type=section_type,
+                        section_title=current_section_title,
+                        **metadata,
+                    )
+                )
             return
 
         for paragraph in _split_paragraphs(section_text):
@@ -225,7 +238,15 @@ def _extract_metadata(
             metadata[key] = _split_technologies(value) if key == "technologies" else value
 
     if section_type == "project":
-        metadata["project_name"] = _extract_project_name(section_title, text)
+        header = extract_experience_header(text, section_type)
+        metadata["project_name"] = header["name"] or _extract_project_name(
+            section_title, text
+        )
+        metadata["role_title"] = metadata["role_title"] or header["role_title"]
+    elif section_type == "internship":
+        header = extract_experience_header(text, section_type)
+        metadata["company_name"] = metadata["company_name"] or header["company_name"]
+        metadata["role_title"] = metadata["role_title"] or header["role_title"]
 
     return metadata
 

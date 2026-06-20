@@ -48,6 +48,7 @@ class ExperienceRecord(BaseModel):
     outcomes: list[str] = Field(default_factory=list)
     metrics: list[str] = Field(default_factory=list)
     raw_source_chunk_ids: list[str] = Field(default_factory=list)
+    raw_text: str
 
     @field_validator("experience_type")
     @classmethod
@@ -56,7 +57,7 @@ class ExperienceRecord(BaseModel):
             raise ValueError("Experience type must be project or internship.")
         return value
 
-    @field_validator("experience_id", "name")
+    @field_validator("experience_id", "name", "raw_text")
     @classmethod
     def require_non_empty_text(cls, value: str) -> str:
         return _non_empty(value)

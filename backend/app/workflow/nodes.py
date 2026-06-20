@@ -14,6 +14,7 @@ from backend.app.core.errors import (
     WorkflowErrorCode,
 )
 from backend.app.documents.chunker import chunk_profile_document
+from backend.app.documents.experience_parser import parse_experience_records
 from backend.app.evaluation.evaluator import evaluate_generated_assets
 from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
@@ -68,10 +69,23 @@ def index_profile(state: AnalysisState, services: WorkflowServices) -> AnalysisS
             for document in state.profile_documents
             for chunk in chunk_profile_document(document)
         ]
+        experience_records = [
+            record
+            for document in state.profile_documents
+            for record in parse_experience_records(
+                document,
+                [
+                    chunk
+                    for chunk in profile_chunks
+                    if chunk.document_id == document.document_id
+                ],
+            )
+        ]
         profile_index_id = services.retrieval_service.index_profile(profile_chunks)
         return state.model_copy(
             update={
                 "profile_chunks": profile_chunks,
+                "experience_records": experience_records,
                 "profile_index_id": profile_index_id,
                 "processing_warnings": processing_warnings,
             }

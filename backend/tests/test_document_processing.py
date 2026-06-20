@@ -214,3 +214,29 @@ def test_heading_keyword_inside_body_does_not_split_section():
     assert len(chunks) == 1
     assert chunks[0].section_type == "project"
     assert "参与项目经历复盘" in chunks[0].text
+
+
+def test_continuous_project_headers_create_independent_retrieval_chunks():
+    document = ProfileDocument(
+        document_id="doc_three_projects",
+        source_name="resume.txt",
+        source_type="text",
+        content=(
+            "项目经历\n"
+            "项目负责人 语义分割 2024 年 2 月 - 2024 年 6 月\n"
+            "项目介绍：解决目标边界模糊问题。\n"
+            "项目负责人 客户反馈分类 2025 年 1 月 - 2025 年 5 月\n"
+            "项目介绍：将反馈映射至产品部门。\n"
+            "Scrum Master 隐性性别歧视识别 2025 年 5 月 - 2025 年 8 月\n"
+            "项目介绍：构建多智能体与 RAG 系统。"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert [chunk.project_name for chunk in chunks] == [
+        "语义分割",
+        "客户反馈分类",
+        "隐性性别歧视识别",
+    ]
+    assert all(chunk.section_type == "project" for chunk in chunks)

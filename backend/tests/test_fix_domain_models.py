@@ -30,6 +30,7 @@ def test_experience_record_accepts_structured_project_and_internship_data():
         outcomes=["Improved mean IoU."],
         metrics=["17% mean IoU improvement"],
         raw_source_chunk_ids=["chunk_project_1"],
+        raw_text="Project Lead Semantic Segmentation 2024-02 to 2024-06",
     )
     internship = ExperienceRecord(
         experience_id="exp_internship_1",
@@ -40,6 +41,7 @@ def test_experience_record_accepts_structured_project_and_internship_data():
         responsibilities=["Designed an automated image-to-text evaluation flow."],
         technologies=["Python", "LLM"],
         raw_source_chunk_ids=["chunk_internship_1"],
+        raw_text="AI Intern Tencent Hunyuan 2024-12 to 2025-01",
     )
 
     assert project.experience_type == "project"
