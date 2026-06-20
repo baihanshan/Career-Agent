@@ -7,6 +7,7 @@ from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.embeddings import FakeEmbeddingClient
 from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
+from backend.app.workflow.domain_models import EvidenceSelection
 from backend.app.workflow.nodes import (
     WorkflowServices,
     analyze_jd,
@@ -97,6 +98,16 @@ def test_write_application_writes_generated_assets():
         update={
             "jd_requirements": [_requirement("req_python")],
             "retrieved_evidence": [_evidence("ev_python", "req_python", score=0.9)],
+            "evidence_selections": [
+                EvidenceSelection(
+                    requirement_id="req_python",
+                    selected_evidence_ids=["ev_python"],
+                    support_level="strong",
+                    support_types=["direct"],
+                    rationale="The project directly supports the requirement.",
+                )
+            ],
+            "allowed_evidence_ids": {"ev_python"},
             "match_analysis": [_match("req_python", ["ev_python"])],
         }
     )

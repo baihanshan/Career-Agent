@@ -442,6 +442,39 @@ def test_application_assets_normalizes_common_model_schema_variants():
     )
 
 
+def test_application_asset_normalization_does_not_infer_ids_from_text_or_fill_blank_ids():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": """
+                {
+                  "match_summary": "Relevant project evidence exists.",
+                  "resume_bullets": [{
+                    "text": "Built an API. (evidence_ids: [\\"ev_python\\"])",
+                    "target_requirement_ids": ["req_python"],
+                    "evidence_ids": [""],
+                    "risk_level": "low"
+                  }],
+                  "interview_prep": {"jd_questions": [], "resume_deep_dive_questions": []}
+                }
+                """
+            }
+        )
+    )
+
+    assets = service.generate_application_assets(
+        context={
+            "requirements": [_requirement().model_dump()],
+            "evidence": [_evidence().model_dump()],
+            "match_analysis": [],
+            "evidence_ids": ["ev_python"],
+        }
+    )
+
+    assert assets.resume_bullets[0].evidence_ids == [""]
+    assert "evidence_ids" in assets.resume_bullets[0].text
+
+
 def test_grounding_evaluation_json_parses_to_evaluation_report():
     service = LLMService(
         client=FakeLLMClient(

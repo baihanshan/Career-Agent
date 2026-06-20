@@ -183,6 +183,8 @@ def write_application(state: AnalysisState, services: WorkflowServices) -> Analy
             requirements=state.jd_requirements,
             evidence_items=state.retrieved_evidence,
             match_items=state.match_analysis,
+            evidence_selections=state.evidence_selections,
+            allowed_evidence_ids=state.allowed_evidence_ids,
             llm_service=services.llm_service,
         )
         return state.model_copy(update={"generated_assets": generated_assets})

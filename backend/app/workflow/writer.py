@@ -9,34 +9,62 @@ from backend.app.api.schemas import (
     MatchItem,
     ResumeBullet,
 )
+from backend.app.evaluation.quality_gate import (
+    PublicOutputQualityGate,
+    quality_issues_to_retry_message,
+)
 from backend.app.llm.client import LLMService
+from backend.app.workflow.domain_models import EvidenceSelection, QualityIssue
+from backend.app.workflow.public_output import InternalIdLeakDetector
 
 
 class WriterOutputError(ValueError):
-    pass
+    def __init__(self, issues: list[QualityIssue]) -> None:
+        super().__init__("Resume bullets failed deterministic safety validation.")
+        self.issues = issues
 
 
 def build_writer_context(
     requirements: list[JDRequirement],
     evidence_items: list[EvidenceItem],
     match_items: list[MatchItem],
+    evidence_selections: list[EvidenceSelection] | None = None,
+    allowed_evidence_ids: set[str] | None = None,
 ) -> dict[str, Any]:
+    selected_ids = {
+        evidence_id
+        for selection in evidence_selections or []
+        for evidence_id in selection.selected_evidence_ids
+    }
+    source_ids = {item.evidence_id for item in evidence_items}
+    runtime_allowlist = (
+        source_ids if allowed_evidence_ids is None else set(allowed_evidence_ids)
+    )
+    effective_ids = (
+        selected_ids & runtime_allowlist
+        if evidence_selections is not None
+        else runtime_allowlist
+    )
     return {
         "requirements": [requirement.model_dump() for requirement in requirements],
         "evidence": [item.model_dump() for item in evidence_items],
+        "evidence_selections": [
+            item.model_dump(mode="json") for item in evidence_selections or []
+        ],
         "match_analysis": [item.model_dump() for item in match_items],
-        "evidence_ids": [item.evidence_id for item in evidence_items],
+        "evidence_ids": sorted(effective_ids),
         "missing_requirement_ids": [
             item.requirement_id for item in match_items if item.match_level == "missing"
         ],
         "generation_rules": [
             "Use evidence-only claims for user experience.",
-            "Every confident resume bullet must include evidence_ids.",
+            "Keep internal IDs only in structured JSON reference fields.",
+            "Never put evidence, requirement, or chunk IDs in user-visible text.",
             "Do not fabricate employers, dates, numbers, tools, outcomes, or responsibilities.",
             "Missing requirements may only produce high-risk caveats or interview prep.",
             "Generate exactly 3 resume bullets.",
             "Prioritize project and internship evidence before skill evidence.",
-            "Use skill evidence only as supporting context, never as a standalone bullet.",
+            "Use contextual skill evidence only as context, never as a practice achievement.",
         ],
     }
 
@@ -46,26 +74,94 @@ def write_application(
     evidence_items: list[EvidenceItem],
     match_items: list[MatchItem],
     llm_service: LLMService,
+    evidence_selections: list[EvidenceSelection] | None = None,
+    allowed_evidence_ids: set[str] | None = None,
 ) -> GeneratedAssets:
     context = build_writer_context(
         requirements=requirements,
         evidence_items=evidence_items,
         match_items=match_items,
+        evidence_selections=evidence_selections,
+        allowed_evidence_ids=allowed_evidence_ids,
     )
-    assets = llm_service.generate_application_assets(context=context)
-    return _validate_and_downgrade_assets(assets, context)
+    last_issues: list[QualityIssue] = []
+    for attempt in range(2):
+        assets = llm_service.generate_application_assets(context=context)
+        assets = _downgrade_unsupported_assets(assets, context)
+        last_issues = _validate_assets(assets, context)
+        if not last_issues:
+            return assets
+        if attempt == 0:
+            context = {
+                **context,
+                "quality_retry_feedback": quality_issues_to_retry_message(last_issues),
+            }
+    raise WriterOutputError(last_issues)
 
 
-def _validate_and_downgrade_assets(
+def _validate_assets(
+    assets: GeneratedAssets,
+    context: Mapping[str, Any],
+) -> list[QualityIssue]:
+    gate = PublicOutputQualityGate()
+    issues = [
+        QualityIssue(
+            code="UNKNOWN_EVIDENCE_ID",
+            field_path=f"resume_bullets.{index}.evidence_ids",
+            message="A resume bullet has no traceable evidence reference.",
+            retry_instruction=(
+                "Reference at least one evidence ID returned by tools in the current "
+                "Agent invocation."
+            ),
+            severity="high",
+        )
+        for index, bullet in enumerate(assets.resume_bullets)
+        if not bullet.evidence_ids
+    ]
+    issues.extend(
+        gate.validate_evidence_allowlist(
+            {
+                f"resume_bullets.{index}.evidence_ids": bullet.evidence_ids
+                for index, bullet in enumerate(assets.resume_bullets)
+            },
+            set(context["evidence_ids"]),
+        )
+    )
+    visible_payload = {
+        "match_summary": assets.match_summary,
+        "resume_bullets": [bullet.text for bullet in assets.resume_bullets],
+        "interview_questions": [
+            {
+                "question": item.question,
+                "sample_answer": item.sample_answer,
+            }
+            for item in [
+                *assets.interview_prep.jd_questions,
+                *assets.interview_prep.resume_deep_dive_questions,
+            ]
+        ],
+    }
+    issues.extend(
+        QualityIssue(
+            code="INTERNAL_ID_LEAK",
+            field_path=path,
+            message="A user-visible generated field contains an internal reference.",
+            retry_instruction="Rewrite the field as natural language without internal IDs.",
+            severity="high",
+        )
+        for path in InternalIdLeakDetector().find_leaks(visible_payload)
+    )
+    return sorted(issues, key=lambda item: (item.field_path, item.code))
+
+
+def _downgrade_unsupported_assets(
     assets: GeneratedAssets,
     context: Mapping[str, Any],
 ) -> GeneratedAssets:
-    evidence_ids = set(context["evidence_ids"])
     missing_requirement_ids = set(context["missing_requirement_ids"])
     resume_bullets = [
-        _validate_and_downgrade_bullet(
+        _downgrade_bullet(
             bullet=bullet,
-            evidence_ids=evidence_ids,
             missing_requirement_ids=missing_requirement_ids,
             context=context,
         )
@@ -74,45 +170,34 @@ def _validate_and_downgrade_assets(
     return assets.model_copy(update={"resume_bullets": resume_bullets})
 
 
-def _validate_and_downgrade_bullet(
+def _downgrade_bullet(
     bullet: ResumeBullet,
-    evidence_ids: set[str],
     missing_requirement_ids: set[str],
     context: Mapping[str, Any],
 ) -> ResumeBullet:
-    known_bullet_evidence_ids = [
-        item for item in bullet.evidence_ids if item in evidence_ids
-    ]
-    if known_bullet_evidence_ids != bullet.evidence_ids:
-        known_bullet_evidence_ids = known_bullet_evidence_ids or _fallback_evidence_ids(
-            bullet.target_requirement_ids,
-            context,
-            evidence_ids,
-        )
-        bullet = bullet.model_copy(update={"evidence_ids": known_bullet_evidence_ids})
-
-    targets_missing_requirement = any(
+    if any(
         requirement_id in missing_requirement_ids
         for requirement_id in bullet.target_requirement_ids
-    )
-    if targets_missing_requirement:
-        return bullet.model_copy(update={"risk_level": "high"})
+    ):
+        bullet = bullet.model_copy(update={"risk_level": "high"})
 
-    if _uses_only_skill_evidence(bullet, context):
+    if _uses_only_contextual_skill_evidence(bullet, context):
         return bullet.model_copy(
             update={
-                "text": "需要补充项目或实习证据后，再将技能点转化为可展示的简历要点。",
+                "text": "该技能目前仅有技能列表佐证，需要补充项目或实习中的实际应用后再写入简历要点。",
                 "risk_level": "high",
             }
         )
 
     if not bullet.evidence_ids and bullet.risk_level != "high":
         return bullet.model_copy(update={"risk_level": "high"})
-
     return bullet
 
 
-def _uses_only_skill_evidence(bullet: ResumeBullet, context: Mapping[str, Any]) -> bool:
+def _uses_only_contextual_skill_evidence(
+    bullet: ResumeBullet,
+    context: Mapping[str, Any],
+) -> bool:
     if not bullet.evidence_ids:
         return False
     evidence_by_id = {
@@ -125,21 +210,18 @@ def _uses_only_skill_evidence(bullet: ResumeBullet, context: Mapping[str, Any]) 
         for evidence_id in bullet.evidence_ids
         if evidence_id in evidence_by_id
     ]
-    return bool(bullet_evidence) and all(
+    if not bullet_evidence or not all(
         item.get("section_type") == "skill" for item in bullet_evidence
+    ):
+        return False
+    selection_by_evidence = {
+        evidence_id: selection
+        for selection in context.get("evidence_selections", [])
+        for evidence_id in selection.get("selected_evidence_ids", [])
+    }
+    return all(
+        not selection_by_evidence.get(item["evidence_id"])
+        or "contextual"
+        in selection_by_evidence[item["evidence_id"]].get("support_types", [])
+        for item in bullet_evidence
     )
-
-
-def _fallback_evidence_ids(
-    requirement_ids: list[str],
-    context: Mapping[str, Any],
-    known_evidence_ids: set[str],
-) -> list[str]:
-    for match_item in context["match_analysis"]:
-        if match_item["requirement_id"] in requirement_ids:
-            return [
-                evidence_id
-                for evidence_id in match_item["evidence_ids"]
-                if evidence_id in known_evidence_ids
-            ]
-    return []

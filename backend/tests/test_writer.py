@@ -1,12 +1,18 @@
 import json
+import pytest
 
 from backend.app.api.schemas import EvidenceItem, JDRequirement, MatchItem
 from backend.app.llm.client import FakeLLMClient, LLMService
 from backend.app.llm.prompts import APPLICATION_GENERATION_PROMPT
 from backend.app.workflow.writer import (
+    WriterOutputError,
     build_writer_context,
     write_application,
 )
+from backend.app.workflow.domain_models import EvidenceSelection
+from backend.app.workflow.public_output import project_public_result
+from backend.app.workflow.state import AnalysisState
+from backend.app.documents.models import ProfileDocument
 
 
 def test_build_writer_context_contains_requirements_evidence_and_matches():
@@ -43,48 +49,54 @@ def test_write_application_returns_generated_assets_from_fake_llm():
     assert len(assets.resume_bullets) == 3
 
 
-def test_missing_evidence_ids_are_replaced_with_matching_evidence():
-    service = LLMService(
-        client=FakeLLMClient(
-            responses={"generate_application_assets": _assets_json(evidence_ids=[], risk_level="low")}
-        )
+def test_missing_evidence_ids_trigger_structured_regeneration():
+    client = _SequentialWriterClient(
+        [
+            _assets_json(evidence_ids=[], risk_level="low"),
+            _assets_json(evidence_ids=["ev_python"], risk_level="low"),
+        ]
     )
 
     assets = write_application(
         requirements=[_requirement("req_python")],
         evidence_items=[_evidence("ev_python", "req_python")],
         match_items=[_match("req_python", "strong", ["ev_python"])],
-        llm_service=service,
+        evidence_selections=[_selection("ev_python")],
+        allowed_evidence_ids={"ev_python"},
+        llm_service=LLMService(client=client),
     )
 
+    assert len(client.calls) == 2
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
     assert assets.resume_bullets[0].risk_level == "low"
 
 
-def test_unknown_evidence_ids_are_replaced_with_matching_evidence():
-    service = LLMService(
-        client=FakeLLMClient(
-            responses={
-                "generate_application_assets": _assets_json(
-                    evidence_ids=["made_up_evidence_id"],
-                    risk_level="low",
-                )
-            }
-        )
+def test_unknown_evidence_ids_trigger_structured_regeneration():
+    client = _SequentialWriterClient(
+        [
+            _assets_json(
+                evidence_ids=["made_up_evidence_id"],
+                risk_level="low",
+            ),
+            _assets_json(evidence_ids=["ev_python"], risk_level="low"),
+        ]
     )
 
     assets = write_application(
         requirements=[_requirement("req_python")],
         evidence_items=[_evidence("ev_python", "req_python")],
         match_items=[_match("req_python", "strong", ["ev_python"])],
-        llm_service=service,
+        evidence_selections=[_selection("ev_python")],
+        allowed_evidence_ids={"ev_python"},
+        llm_service=LLMService(client=client),
     )
 
+    assert len(client.calls) == 2
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
     assert assets.resume_bullets[0].risk_level == "low"
 
 
-def test_missing_requirement_bullet_is_downgraded_to_high_risk():
+def test_missing_requirement_without_evidence_fails_safely():
     service = LLMService(
         client=FakeLLMClient(
             responses={
@@ -98,15 +110,15 @@ def test_missing_requirement_bullet_is_downgraded_to_high_risk():
         )
     )
 
-    assets = write_application(
-        requirements=[_requirement("req_missing")],
-        evidence_items=[],
-        match_items=[_match("req_missing", "missing", [])],
-        llm_service=service,
-    )
+    with pytest.raises(WriterOutputError):
+        write_application(
+            requirements=[_requirement("req_missing")],
+            evidence_items=[],
+            match_items=[_match("req_missing", "missing", [])],
+            llm_service=service,
+        )
 
-    assert assets.resume_bullets[0].risk_level == "high"
-    assert assets.resume_bullets[0].evidence_ids == []
+    assert len(service.client.calls) == 2
 
 
 def test_write_application_does_not_return_cover_letter():
@@ -245,6 +257,161 @@ def test_writer_prompt_contains_evidence_only_constraints():
     assert "project and internship evidence first" in prompt
 
 
+@pytest.mark.parametrize(
+    "polluted_text",
+    [
+        'Built a Python API. (evidence_ids: ["ev_python"])',
+        "Built a Python API for req_python.",
+        "Built a Python API. evidence_ids: []",
+    ],
+)
+def test_writer_retries_when_bullet_text_contains_internal_ids(polluted_text):
+    client = _SequentialWriterClient(
+        [
+            _assets_json(text=polluted_text),
+            _assets_json(text="Built a Python API with evidence-grounded reliability checks."),
+        ]
+    )
+
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+        match_items=[_match("req_python", "strong", ["ev_python"])],
+        evidence_selections=[_selection("ev_python")],
+        allowed_evidence_ids={"ev_python"},
+        llm_service=LLMService(client=client),
+    )
+
+    assert len(client.calls) == 2
+    assert "evidence_ids" not in assets.resume_bullets[0].text
+    assert "req_python" not in assets.resume_bullets[0].text
+
+
+def test_writer_fails_safely_when_regenerated_text_still_leaks_ids():
+    client = _SequentialWriterClient(
+        [_assets_json(text="Uses req_python."), _assets_json(text="Uses req_python.")]
+    )
+
+    with pytest.raises(WriterOutputError) as exc_info:
+        write_application(
+            requirements=[_requirement("req_python")],
+            evidence_items=[_evidence("ev_python", "req_python")],
+            match_items=[_match("req_python", "strong", ["ev_python"])],
+            evidence_selections=[_selection("ev_python")],
+            allowed_evidence_ids={"ev_python"},
+            llm_service=LLMService(client=client),
+        )
+
+    assert len(client.calls) == 2
+    assert "req_python" not in str(exc_info.value)
+
+
+def test_internal_bullet_keeps_evidence_ids_but_public_projection_drops_them():
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+        match_items=[_match("req_python", "strong", ["ev_python"])],
+        evidence_selections=[_selection("ev_python")],
+        allowed_evidence_ids={"ev_python"},
+        llm_service=LLMService(
+            client=FakeLLMClient(
+                responses={"generate_application_assets": _assets_json()}
+            )
+        ),
+    )
+    state = AnalysisState(
+        analysis_id="analysis_writer",
+        profile_documents=[
+            ProfileDocument(
+                source_name="resume.txt",
+                source_type="text",
+                content="Built a Python API.",
+            )
+        ],
+        job_description="Python API role",
+        generated_assets=assets,
+    )
+
+    public = project_public_result(state).model_dump(mode="json")
+
+    assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
+    assert public["generated_assets"]["resume_bullets"][0] == {
+        "text": "Built Python APIs backed by project evidence.",
+        "risk_level": "low",
+    }
+
+
+def test_writer_rejects_evidence_outside_selection_allowlist():
+    client = _SequentialWriterClient(
+        [
+            _assets_json(evidence_ids=["ev_unselected"]),
+            _assets_json(evidence_ids=["ev_selected"]),
+        ]
+    )
+
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[
+            _evidence("ev_selected", "req_python"),
+            _evidence("ev_unselected", "req_python"),
+        ],
+        match_items=[_match("req_python", "strong", ["ev_selected"])],
+        evidence_selections=[_selection("ev_selected")],
+        allowed_evidence_ids={"ev_selected", "ev_unselected"},
+        llm_service=LLMService(client=client),
+    )
+
+    assert len(client.calls) == 2
+    assert assets.resume_bullets[0].evidence_ids == ["ev_selected"]
+
+
+def test_writer_rejects_selected_evidence_when_runtime_allowlist_is_empty():
+    client = _SequentialWriterClient([_assets_json(), _assets_json()])
+
+    with pytest.raises(WriterOutputError):
+        write_application(
+            requirements=[_requirement("req_python")],
+            evidence_items=[_evidence("ev_python", "req_python")],
+            match_items=[_match("req_python", "strong", ["ev_python"])],
+            evidence_selections=[_selection("ev_python")],
+            allowed_evidence_ids=set(),
+            llm_service=LLMService(client=client),
+        )
+
+    assert len(client.calls) == 2
+
+
+def test_contextual_skill_support_cannot_become_exaggerated_practice_claim():
+    assets = write_application(
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_skill", "req_python", section_type="skill")],
+        match_items=[_match("req_python", "partial", ["ev_skill"])],
+        evidence_selections=[
+            EvidenceSelection(
+                requirement_id="req_python",
+                selected_evidence_ids=["ev_skill"],
+                support_level="partial",
+                support_types=["contextual"],
+                rationale="The skills section provides contextual support only.",
+            )
+        ],
+        allowed_evidence_ids={"ev_skill"},
+        llm_service=LLMService(
+            client=FakeLLMClient(
+                responses={
+                    "generate_application_assets": _assets_json(
+                        evidence_ids=["ev_skill"],
+                        text="Led a production Python platform serving millions of users.",
+                    )
+                }
+            )
+        ),
+    )
+
+    assert all("millions" not in bullet.text for bullet in assets.resume_bullets)
+    assert all(bullet.risk_level == "high" for bullet in assets.resume_bullets)
+
+
 def _requirement(requirement_id: str) -> JDRequirement:
     return JDRequirement(
         requirement_id=requirement_id,
@@ -312,3 +479,26 @@ def _assets_json(
             ],
         }
     )
+
+
+def _selection(evidence_id: str) -> EvidenceSelection:
+    return EvidenceSelection(
+        requirement_id="req_python",
+        selected_evidence_ids=[evidence_id],
+        support_level="strong",
+        support_types=["direct"],
+        rationale="The selected project directly supports the requirement.",
+    )
+
+
+class _SequentialWriterClient:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def generate(self, prompt_key, prompt, variables):
+        self.calls.append(
+            {"prompt_key": prompt_key, "prompt": prompt, "variables": variables}
+        )
+        index = min(len(self.calls) - 1, len(self.responses) - 1)
+        return self.responses[index]

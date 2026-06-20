@@ -543,9 +543,7 @@ def _normalize_resume_bullet(
         raw_targets,
         context,
     ) or _default_requirement_ids(context)
-    evidence_ids = _known_evidence_ids(raw_evidence_ids, context)
-    if not evidence_ids:
-        evidence_ids = _fallback_evidence_ids(target_requirement_ids, context)
+    evidence_ids = _raw_reference_list(raw_evidence_ids)
 
     return {
         "text": text,
@@ -727,6 +725,14 @@ def _string_list(value: Any) -> list[str]:
         return [value.strip()] if value.strip() else []
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _raw_reference_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value]
     return []
 
 
