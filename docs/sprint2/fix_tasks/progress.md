@@ -35,7 +35,7 @@
 - [x] `requirement-semantics.md`：JD verification mode、interviewability、capability tags 和 OR 逻辑。
 - [x] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
 - [x] `public-output-boundary.md`：internal/public model 分离与 ID 泄露阻断。
-- [ ] `quality-gates.md`：证据、重复、复制、问题、答案和风险一致性门禁。
+- [x] `quality-gates.md`：证据、重复、复制、问题、答案和风险一致性门禁。
 - [ ] `resume-evidence-react-agent.md`：真实 LLM ReAct 证据检索和语义支持判断。
 - [ ] `resume-bullet-safety.md`：简历要点证据约束和 public 输出安全。
 - [ ] `interview-prep-react-agent.md`：专业 JD 问题、简历深挖和自然示范回答。
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md` 已完成；下一任务为 `quality-gates.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md` 已完成；下一任务为 `resume-evidence-react-agent.md`，尚未开始。
