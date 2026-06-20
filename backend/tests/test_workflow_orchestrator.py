@@ -86,7 +86,8 @@ def test_resume_evidence_agent_failure_stops_workflow_logs_reason_and_cleans_col
     assert response.error["code"] == "RESUME_EVIDENCE_AGENT_ERROR"
     assert response.error["message"] == "Could not find usable resume evidence for this JD."
     assert "resume_evidence_agent" in caplog.text
-    assert "no usable evidence" in caplog.text
+    assert "tool=quality_gate" in caplog.text
+    assert "tools=search_resume_evidence" in caplog.text
     assert services.retrieval_service.vector_store.items == []
 
 

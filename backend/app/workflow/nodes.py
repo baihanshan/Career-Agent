@@ -48,6 +48,8 @@ logger = logging.getLogger(__name__)
 class WorkflowServices:
     retrieval_service: RetrievalService
     llm_service: LLMService
+    react_model: object | None = None
+    resume_evidence_agent: ResumeEvidenceAgent | None = None
     interview_prep_agent: InterviewPrepAgent | None = None
     risk_auditor_agent: RiskAuditorAgent | None = None
 
@@ -125,7 +127,10 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
 
 def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
-        return ResumeEvidenceAgent().run(state, services.retrieval_service)
+        agent = services.resume_evidence_agent or ResumeEvidenceAgent(
+            model=services.react_model
+        )
+        return agent.run(state, services.retrieval_service)
     except ResumeEvidenceAgentError as exc:
         _log_agent_failure(
             "resume_evidence_agent", exc, state, "search_resume_evidence"

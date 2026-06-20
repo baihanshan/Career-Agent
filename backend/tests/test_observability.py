@@ -60,8 +60,9 @@ def test_agent_failure_log_contains_agent_tool_reason_and_trace_summary(caplog):
 
     assert response.status == "failed"
     assert "agent=resume_evidence_agent" in caplog.text
-    assert "tool=search_resume_evidence" in caplog.text
-    assert "reason=Resume Evidence Agent found no usable evidence" in caplog.text
+    assert "tool=quality_gate" in caplog.text
+    assert "tools=search_resume_evidence" in caplog.text
+    assert "reason=Resume Evidence Agent failed deterministic quality validation" in caplog.text
     assert "trace_summary=steps=3" in caplog.text
     assert "search_resume_evidence" in caplog.text
 

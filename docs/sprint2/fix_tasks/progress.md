@@ -36,7 +36,7 @@
 - [x] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
 - [x] `public-output-boundary.md`：internal/public model 分离与 ID 泄露阻断。
 - [x] `quality-gates.md`：证据、重复、复制、问题、答案和风险一致性门禁。
-- [ ] `resume-evidence-react-agent.md`：真实 LLM ReAct 证据检索和语义支持判断。
+- [x] `resume-evidence-react-agent.md`：真实 LLM ReAct 证据检索和语义支持判断。
 - [ ] `resume-bullet-safety.md`：简历要点证据约束和 public 输出安全。
 - [ ] `interview-prep-react-agent.md`：专业 JD 问题、简历深挖和自然示范回答。
 - [ ] `numeric-grounding.md`：按语义类型校验量化声明。
@@ -60,7 +60,7 @@
 
 ### Phase 3：生成与分析 Agent
 
-- [ ] Resume Evidence 使用真实 LLM ReAct。
+- [x] Resume Evidence 使用真实 LLM ReAct。
 - [ ] Resume Bullet 不泄露 ID 且证据合法。
 - [ ] Interview Prep 使用真实 LLM ReAct。
 - [ ] Risk Auditor 使用真实 LLM ReAct。
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md` 已完成；下一任务为 `resume-evidence-react-agent.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md`、`resume-evidence-react-agent.md` 已完成；下一任务为 `resume-bullet-safety.md`，尚未开始。

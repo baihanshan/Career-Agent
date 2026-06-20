@@ -1,95 +1,214 @@
+import json
+from pathlib import Path
+
 import pytest
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.messages import AIMessage
+from pydantic import Field
 
 from backend.app.api.schemas import EvidenceItem, JDRequirement
-from backend.app.llm.client import LLMService
-from backend.app.workflow.nodes import WorkflowServices, finalize_response, parse_inputs, retrieve_evidence
+from backend.app.documents.models import ProfileDocument
+from backend.app.workflow.domain_models import ExperienceRecord, SupportType
 from backend.app.workflow.resume_evidence_agent import (
     RESUME_EVIDENCE_AGENT_PROMPT,
     ResumeEvidenceAgent,
     ResumeEvidenceAgentError,
     create_resume_evidence_react_agent,
 )
-from backend.tests.test_workflow_nodes import _request
+from backend.app.workflow.state import AnalysisState
 
 
-def test_resume_evidence_agent_retries_project_search_after_skill_only_hit():
+def test_agent_calls_search_then_inspects_and_compares_after_insufficient_observation():
+    fixture = _fixture("insufficient_then_compare")
+    model = _fake_model(fixture["responses"])
+    state = _state(
+        [_requirement("req_python", "Python engineering", ["programming"])],
+        experiences=[_experience("exp_api", "API Platform")],
+    )
     service = _ScriptedRetrievalService(
+        [[_evidence("ev_skill", "req_python", "skill", "Python skill list")]]
+    )
+
+    result = ResumeEvidenceAgent(model=model).run(state, service)
+
+    assert [step.tool_name for step in result.agent_traces[0].steps] == [
+        "search_resume_evidence",
+        "get_experience",
+        "compare_requirement_to_evidence",
+    ]
+    assert result.evidence_selections[0].support_level == "partial"
+    assert result.allowed_evidence_ids == {"ev_skill"}
+    serialized_trace = json.dumps(
+        result.agent_traces[0].model_dump(mode="json"),
+        ensure_ascii=False,
+    )
+    assert "requirement_id" not in serialized_trace
+    assert "evidence_ids" not in serialized_trace
+
+
+def test_multiple_python_projects_form_indirect_support_instead_of_missing():
+    model = _fake_model(
         [
-            [_evidence("ev_skill", "skill", 0.95)],
-            [_evidence("ev_project", "project", 0.72)],
+            _tool_call(
+                "search_resume_evidence",
+                {"query": "Python programming", "requirement_id": "req_python"},
+                "call_search_python",
+            ),
+            _final(
+                [
+                    _selection(
+                        "req_python",
+                        ["ev_api", "ev_nlp"],
+                        "strong",
+                        ["indirect"],
+                    )
+                ]
+            ),
         ]
     )
-    state = parse_inputs(_request()).model_copy(
-        update={"jd_requirements": [_requirement()]}
+    state = _state(
+        [_requirement("req_python", "扎实的 Python 编程基础", ["programming"])]
     )
-
-    next_state = ResumeEvidenceAgent().run(state, service)
-
-    assert service.section_filters == [None, ["project", "internship"]]
-    assert [item.evidence_id for item in next_state.retrieved_evidence] == [
-        "ev_project",
-        "ev_skill",
-    ]
-    assert next_state.agent_traces[0].agent_name == "resume_evidence"
-    assert [step.tool_name for step in next_state.agent_traces[0].steps] == [
-        "search_resume_evidence",
-        "search_resume_evidence",
-        "rerank_evidence",
-    ]
-
-
-def test_resume_evidence_agent_ranks_project_evidence_above_skill_evidence():
     service = _ScriptedRetrievalService(
-        [[_evidence("ev_skill", "skill", 0.99), _evidence("ev_project", "project", 0.5)]]
-    )
-    state = parse_inputs(_request()).model_copy(
-        update={"jd_requirements": [_requirement()]}
+        [
+            [
+                _evidence("ev_api", "req_python", "project", "Built a Python API."),
+                _evidence("ev_nlp", "req_python", "project", "Built an NLP classifier in Python."),
+            ]
+        ]
     )
 
-    next_state = ResumeEvidenceAgent().run(state, service)
+    result = ResumeEvidenceAgent(model=model).run(state, service)
 
-    assert [item.evidence_id for item in next_state.retrieved_evidence] == [
-        "ev_project",
-        "ev_skill",
+    selection = result.evidence_selections[0]
+    assert selection.support_level == "strong"
+    assert selection.support_types == [SupportType.INDIRECT]
+    assert selection.selected_evidence_ids == ["ev_api", "ev_nlp"]
+
+
+def test_multimodal_internship_is_direct_support_for_multimodal_requirement():
+    model = _fake_model(
+        [
+            _tool_call(
+                "search_resume_evidence",
+                {"query": "multimodal", "requirement_id": "req_multimodal"},
+                "call_search_multimodal",
+            ),
+            _final(
+                [
+                    _selection(
+                        "req_multimodal",
+                        ["ev_tencent"],
+                        "strong",
+                        ["direct"],
+                    )
+                ]
+            ),
+        ]
+    )
+    state = _state(
+        [_requirement("req_multimodal", "多模态领域经验", ["multimodal"])]
+    )
+    service = _ScriptedRetrievalService(
+        [
+            [
+                _evidence(
+                    "ev_tencent",
+                    "req_multimodal",
+                    "internship",
+                    "腾讯混元多模态团队图像转文本模型评估。",
+                )
+            ]
+        ]
+    )
+
+    result = ResumeEvidenceAgent(model=model).run(state, service)
+
+    assert result.evidence_selections[0].support_types == [SupportType.DIRECT]
+    assert [item.evidence_id for item in result.retrieved_evidence] == ["ev_tencent"]
+
+
+def test_education_or_other_observation_does_not_force_agent_to_stop_searching():
+    model = _fake_model(
+        [
+            _tool_call(
+                "search_resume_evidence",
+                {"query": "machine learning", "requirement_id": "req_ml"},
+                "call_search_all",
+            ),
+            _tool_call(
+                "search_resume_evidence",
+                {
+                    "query": "machine learning project",
+                    "requirement_id": "req_ml",
+                    "section_types": ["project", "internship"],
+                },
+                "call_search_experience",
+            ),
+            _final(
+                [_selection("req_ml", ["ev_project"], "strong", ["direct"])]
+            ),
+        ]
+    )
+    state = _state([_requirement("req_ml", "机器学习项目经验", ["machine_learning"])])
+    service = _ScriptedRetrievalService(
+        [
+            [_evidence("ev_education", "req_ml", "education", "MSc Artificial Intelligence")],
+            [_evidence("ev_project", "req_ml", "project", "Trained a segmentation model")],
+        ]
+    )
+
+    result = ResumeEvidenceAgent(model=model).run(state, service)
+
+    assert service.call_count == 2
+    assert [step.tool_name for step in result.agent_traces[0].steps] == [
+        "search_resume_evidence",
+        "search_resume_evidence",
     ]
+    assert result.evidence_selections[0].selected_evidence_ids == ["ev_project"]
 
 
-def test_resume_evidence_agent_fails_after_three_empty_tool_steps():
-    service = _ScriptedRetrievalService([[], [], []])
-    state = parse_inputs(_request()).model_copy(
-        update={"jd_requirements": [_requirement()]}
+def test_unknown_evidence_id_gets_quality_feedback_and_fails_after_three_attempts():
+    responses = []
+    for attempt in range(1, 4):
+        responses.extend(
+            [
+                _tool_call(
+                    "search_resume_evidence",
+                    {"query": "Python", "requirement_id": "req_python"},
+                    f"call_search_{attempt}",
+                ),
+                _final(
+                    [_selection("req_python", ["ev_made_up"], "strong", ["direct"])]
+                ),
+            ]
+        )
+    model = _fake_model(responses)
+    state = _state([_requirement("req_python", "Python engineering", ["programming"])])
+    service = _ScriptedRetrievalService(
+        [[_evidence("ev_real", "req_python", "project", "Built a Python API")]]
     )
 
     with pytest.raises(ResumeEvidenceAgentError) as exc_info:
-        ResumeEvidenceAgent().run(state, service)
+        ResumeEvidenceAgent(model=model, max_attempts=3).run(state, service)
 
+    assert exc_info.value.code == "REACT_EVIDENCE_VIOLATION"
     assert service.call_count == 3
-    assert "no usable evidence" in str(exc_info.value)
+    retry_prompts = [
+        message.content
+        for invocation in model.messages_seen
+        for message in invocation
+        if getattr(message, "type", "") == "human" and "UNKNOWN_EVIDENCE_ID" in message.content
+    ]
+    assert retry_prompts
+    assert "ev_made_up" not in retry_prompts[0]
 
 
-def test_retrieve_evidence_node_returns_friendly_error_when_agent_fails():
-    services = WorkflowServices(
-        retrieval_service=_ScriptedRetrievalService([[], [], []]),
-        llm_service=LLMService(client=_UnusedLLMClient()),
-    )
-    state = parse_inputs(_request()).model_copy(
-        update={"jd_requirements": [_requirement()]}
-    )
-
-    failed_state = retrieve_evidence(state, services)
-    response = finalize_response(failed_state)
-
-    assert response.status == "failed"
-    assert response.error["code"] == "RESUME_EVIDENCE_AGENT_ERROR"
-    assert response.error["message"] == "Could not find usable resume evidence for this JD."
-    assert set(response.error) == {"code", "message"}
-
-
-def test_resume_evidence_react_agent_uses_langgraph_create_react_agent(monkeypatch):
+def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt):
-        calls.append({"model": model, "tools": tools, "prompt": prompt})
+    def fake_create_react_agent(*, model, tools, prompt, name):
+        calls.append({"model": model, "tools": tools, "prompt": prompt, "name": name})
         return "compiled-agent"
 
     monkeypatch.setattr(
@@ -101,46 +220,133 @@ def test_resume_evidence_react_agent_uses_langgraph_create_react_agent(monkeypat
 
     assert agent == "compiled-agent"
     assert calls[0]["tools"] == ["tool"]
-    assert "project/internship" in calls[0]["prompt"]
+    assert calls[0]["name"] == "resume_evidence"
+    assert "semantic" in calls[0]["prompt"].lower()
     assert RESUME_EVIDENCE_AGENT_PROMPT == calls[0]["prompt"]
 
 
-def _requirement() -> JDRequirement:
-    return JDRequirement(
-        requirement_id="req_python",
-        category="hard_skill",
-        text="Python API development",
-        importance="high",
-        keywords=["Python", "API"],
+class _ToolCallingFakeModel(FakeMessagesListChatModel):
+    messages_seen: list[list[object]] = Field(default_factory=list)
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.messages_seen.append(list(messages))
+        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+
+def _fake_model(responses):
+    return _ToolCallingFakeModel(responses=[_message(item) for item in responses])
+
+
+def _message(item):
+    if isinstance(item, AIMessage):
+        return item
+    if "tool_call" in item:
+        call = item["tool_call"]
+        return _tool_call(call["name"], call["args"], call["id"])
+    return AIMessage(content=json.dumps(item, ensure_ascii=False))
+
+
+def _tool_call(name, args, call_id):
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {"name": name, "args": args, "id": call_id, "type": "tool_call"}
+        ],
     )
 
 
-def _evidence(evidence_id: str, section_type: str, score: float) -> EvidenceItem:
+def _final(selections):
+    return AIMessage(
+        content=json.dumps({"selections": selections}, ensure_ascii=False)
+    )
+
+
+def _selection(requirement_id, evidence_ids, level, support_types):
+    return {
+        "requirement_id": requirement_id,
+        "selected_evidence_ids": evidence_ids,
+        "support_level": level,
+        "support_types": support_types,
+        "rationale": "The selected evidence provides the stated semantic support.",
+        "uncovered_aspects": [],
+    }
+
+
+def _fixture(name):
+    payload = json.loads(
+        (
+            Path(__file__).parent
+            / "fixtures"
+            / "resume_evidence_react_calls.json"
+        ).read_text(encoding="utf-8")
+    )
+    return payload[name]
+
+
+def _state(requirements, experiences=None):
+    return AnalysisState(
+        analysis_id="analysis_resume_evidence",
+        profile_documents=[
+            ProfileDocument(
+                source_name="resume.pdf",
+                source_type="text",
+                content="Structured resume fixture with project and internship evidence.",
+            )
+        ],
+        job_description="Applied AI role",
+        jd_requirements=requirements,
+        experience_records=experiences or [],
+    )
+
+
+def _requirement(requirement_id, text, tags):
+    return JDRequirement(
+        requirement_id=requirement_id,
+        category="hard_skill",
+        text=text,
+        importance="high",
+        keywords=[],
+        capability_tags=tags,
+        verification_mode="technical_question",
+        interviewability=True,
+        question_focus="Applied technical depth and trade-offs",
+    )
+
+
+def _experience(experience_id, name):
+    return ExperienceRecord(
+        experience_id=experience_id,
+        experience_type="project",
+        name=name,
+        responsibilities=["Built a Python API."],
+        technologies=["Python"],
+        outcomes=["Completed the system."],
+        raw_source_chunk_ids=["chunk_api"],
+        raw_text="Built a Python API for an applied AI system.",
+    )
+
+
+def _evidence(evidence_id, requirement_id, section_type, snippet):
     return EvidenceItem(
         evidence_id=evidence_id,
-        requirement_id="req_python",
+        requirement_id=requirement_id,
         chunk_id=f"chunk_{evidence_id}",
-        source_name="resume.md",
-        section_label=section_type.title(),
+        source_name="resume.pdf",
         section_type=section_type,
-        snippet=f"{section_type} evidence about Python API.",
-        score=score,
+        snippet=snippet,
+        score=0.9,
     )
 
 
 class _ScriptedRetrievalService:
-    def __init__(self, responses: list[list[EvidenceItem]]) -> None:
+    def __init__(self, responses):
         self.responses = responses
         self.call_count = 0
-        self.section_filters = []
 
     def retrieve_evidence(self, requirements, top_k, section_filter=None):
+        index = min(self.call_count, len(self.responses) - 1)
         self.call_count += 1
-        self.section_filters.append(section_filter)
-        index = min(self.call_count - 1, len(self.responses) - 1)
         return self.responses[index]
-
-
-class _UnusedLLMClient:
-    def generate(self, prompt_key, prompt, variables):
-        raise AssertionError("LLM should not be called in resume evidence tests")

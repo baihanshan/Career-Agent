@@ -1,8 +1,22 @@
 from __future__ import annotations
 
-from backend.app.api.schemas import AgentToolResult, EvidenceItem
-from backend.app.core.errors import AgentExecutionError
+import json
+import re
+from typing import Any
+
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from pydantic import BaseModel, Field
+
+from backend.app.core.errors import AgentExecutionError, ReActErrorCode
+from backend.app.evaluation.quality_gate import (
+    PublicOutputQualityGate,
+    quality_issues_to_retry_message,
+)
 from backend.app.workflow.agent_tools import MAX_REACT_AGENT_STEPS, TraceRecorder
+from backend.app.workflow.domain_models import EvidenceSelection, QualityIssue
+from backend.app.workflow.react_tools import build_structured_react_tools
 from backend.app.workflow.state import AnalysisState
 
 try:
@@ -12,75 +26,148 @@ except ImportError:  # pragma: no cover - dependency is present in normal instal
 
 
 RESUME_EVIDENCE_AGENT_PROMPT = """
-You are the Resume Evidence Agent.
-Use only the allowed tools: search_resume_evidence, get_resume_section, rerank_evidence.
-Prioritize project/internship evidence for resume bullets and downstream generation.
-Skill evidence is auxiliary. If the first result set only contains skill evidence, continue searching project/internship sections.
-Stop after at most 3 tool steps. If no usable evidence is found, fail rather than returning weak evidence.
-Return structured evidence items only; do not expose hidden reasoning.
+You are the Resume Evidence ReAct Agent.
+Use the available structured tools to find the smallest semantically relevant evidence set
+for every JD requirement. You must call search_resume_evidence before selecting evidence.
+When a result is only lexical, contextual, education, skill, or otherwise insufficient,
+continue with get_experience, get_resume_section, compare_requirement_to_evidence, or
+rerank_evidence as appropriate. Do not conclude support from section type or score alone.
+Multiple projects may jointly provide indirect support for a foundational capability.
+An internship whose actual work matches the requested domain may provide direct support.
+Use only evidence IDs returned by tools in the current invocation. Never invent IDs.
+Return only JSON with a top-level "selections" list matching EvidenceSelection fields:
+requirement_id, selected_evidence_ids, support_level, support_types, rationale,
+and uncovered_aspects. Do not include hidden reasoning or markdown fences.
 """.strip()
 
 
+class _EvidenceSelectionOutput(BaseModel):
+    selections: list[EvidenceSelection] = Field(default_factory=list)
+
+
 class ResumeEvidenceAgentError(AgentExecutionError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        failed_tool: str,
+        trace_summary: str,
+        code: str = ReActErrorCode.REACT_QUALITY_GATE_FAILED.value,
+    ) -> None:
+        super().__init__(
+            message,
+            failed_tool=failed_tool,
+            trace_summary=trace_summary,
+        )
+        self.code = code
 
 
 class ResumeEvidenceAgent:
-    def __init__(self, max_steps: int = MAX_REACT_AGENT_STEPS) -> None:
+    def __init__(
+        self,
+        model: Any | None = None,
+        *,
+        max_steps: int = MAX_REACT_AGENT_STEPS,
+        max_attempts: int = 3,
+    ) -> None:
+        self.model = model or _DeterministicResumeEvidenceChatModel()
         self.max_steps = max_steps
+        self.max_attempts = max_attempts
+        self.quality_gate = PublicOutputQualityGate()
 
     def run(self, state: AnalysisState, retrieval_service) -> AnalysisState:
-        recorder = TraceRecorder(agent_name="resume_evidence")
-        evidence: list[EvidenceItem] = []
-        usable_evidence_seen = False
+        tool_state = state.model_copy(deep=True)
+        all_steps = []
+        retry_feedback = ""
+        last_issues: list[QualityIssue] = []
 
-        for step_number in range(1, self.max_steps + 1):
-            section_filter = _section_filter_for_step(
-                step_number=step_number,
-                evidence=evidence,
-                usable_evidence_seen=usable_evidence_seen,
+        for attempt_number in range(1, self.max_attempts + 1):
+            recorder = TraceRecorder(
+                agent_name="resume_evidence",
+                attempt_number=attempt_number,
             )
-            retrieved = retrieval_service.retrieve_evidence(
-                requirements=state.jd_requirements,
-                top_k=state.run_config.top_k,
-                section_filter=section_filter,
+            tools = build_structured_react_tools(
+                tool_state,
+                "resume_evidence",
+                recorder,
+                retrieval_service=retrieval_service,
             )
-            recorder.record(
-                AgentToolResult(
-                    tool_name="search_resume_evidence",
-                    arguments_summary=(
-                        f"step={step_number} section_filter={section_filter or []} "
-                        f"top_k={state.run_config.top_k}"
-                    ),
-                    return_summary=_evidence_summary(retrieved),
-                    status="success",
+            agent = create_resume_evidence_react_agent(self.model, tools)
+            try:
+                result = agent.invoke(
+                    {
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": _invocation_prompt(tool_state, retry_feedback),
+                            }
+                        ]
+                    },
+                    config={"recursion_limit": self.max_steps * 2 + 4},
                 )
-            )
+                selections = _parse_final_selections(result)
+            except Exception as exc:
+                all_steps.extend(recorder.steps)
+                last_issues = [
+                    _quality_issue(
+                        "REACT_OUTPUT_PARSE_ERROR",
+                        "evidence_selections",
+                        "Return valid JSON matching the EvidenceSelection list schema.",
+                    )
+                ]
+                retry_feedback = quality_issues_to_retry_message(last_issues)
+                if attempt_number == self.max_attempts:
+                    raise ResumeEvidenceAgentError(
+                        "Resume Evidence Agent could not produce valid structured output.",
+                        failed_tool="structured_output",
+                        trace_summary=_trace_summary(all_steps),
+                    ) from exc
+                continue
 
-            evidence = _merge_evidence(evidence, retrieved)
-            usable_evidence_seen = _has_usable_evidence(evidence)
-            if usable_evidence_seen:
-                break
+            all_steps.extend(recorder.steps)
+            last_issues = _validate_selections(tool_state, selections, self.quality_gate)
+            if not last_issues:
+                selected_ids = [
+                    evidence_id
+                    for selection in selections
+                    for evidence_id in selection.selected_evidence_ids
+                ]
+                evidence_by_id = {
+                    item.evidence_id: item for item in tool_state.retrieved_evidence
+                }
+                selected_evidence = [
+                    evidence_by_id[evidence_id]
+                    for evidence_id in dict.fromkeys(selected_ids)
+                    if evidence_id in evidence_by_id
+                ]
+                final_recorder = TraceRecorder(agent_name="resume_evidence")
+                final_recorder.steps = all_steps
+                updated = state.model_copy(
+                    update={
+                        "retrieved_evidence": selected_evidence,
+                        "evidence_selections": selections,
+                        "allowed_evidence_ids": set(tool_state.allowed_evidence_ids),
+                    }
+                )
+                return final_recorder.attach_to_state(
+                    updated,
+                    final_decision_summary=(
+                        f"Validated evidence selections for {len(selections)} requirement(s)."
+                    ),
+                )
 
-        if not evidence or not usable_evidence_seen:
-            raise ResumeEvidenceAgentError(
-                "Resume Evidence Agent found no usable evidence in 3 tool steps.",
-                failed_tool="search_resume_evidence",
-                trace_summary=recorder.summary(),
-            )
+            retry_feedback = quality_issues_to_retry_message(last_issues)
 
-        ranked = _rank_evidence(evidence)
-        recorder.record(
-            AgentToolResult(
-                tool_name="rerank_evidence",
-                arguments_summary=f"evidence_count={len(evidence)}",
-                return_summary=_evidence_summary(ranked),
-                status="success",
-            )
+        error_code = (
+            ReActErrorCode.REACT_EVIDENCE_VIOLATION.value
+            if any(issue.code == "UNKNOWN_EVIDENCE_ID" for issue in last_issues)
+            else ReActErrorCode.REACT_QUALITY_GATE_FAILED.value
         )
-        return recorder.attach_to_state(
-            state.model_copy(update={"retrieved_evidence": ranked}),
-            final_decision_summary="Prioritized project/internship evidence for downstream generation.",
+        raise ResumeEvidenceAgentError(
+            "Resume Evidence Agent failed deterministic quality validation after 3 attempts.",
+            failed_tool="quality_gate",
+            trace_summary=_trace_summary(all_steps),
+            code=error_code,
         )
 
 
@@ -91,49 +178,235 @@ def create_resume_evidence_react_agent(model, tools):
         model=model,
         tools=tools,
         prompt=RESUME_EVIDENCE_AGENT_PROMPT,
+        name="resume_evidence",
     )
 
 
-def _section_filter_for_step(
-    step_number: int,
-    evidence: list[EvidenceItem],
-    usable_evidence_seen: bool,
-) -> list[str] | None:
-    if step_number == 1:
-        return None
-    if evidence and not usable_evidence_seen:
-        return ["project", "internship"]
-    return None
+def _invocation_prompt(state: AnalysisState, retry_feedback: str) -> str:
+    requirements = [item.model_dump(mode="json") for item in state.jd_requirements]
+    prompt = (
+        "Analyze these JD requirements and return one EvidenceSelection for each:\n"
+        + json.dumps(requirements, ensure_ascii=False)
+    )
+    if retry_feedback:
+        prompt += "\n\nPrevious output failed validation.\n" + retry_feedback
+    return prompt
 
 
-def _merge_evidence(
-    existing: list[EvidenceItem],
-    new_items: list[EvidenceItem],
-) -> list[EvidenceItem]:
-    by_id = {item.evidence_id: item for item in existing}
-    for item in new_items:
-        by_id.setdefault(item.evidence_id, item)
-    return list(by_id.values())
+def _parse_final_selections(result: dict[str, Any]) -> list[EvidenceSelection]:
+    structured = result.get("structured_response")
+    if structured is not None:
+        return _EvidenceSelectionOutput.model_validate(structured).selections
+    messages = result.get("messages") or []
+    content = next(
+        (
+            message.content
+            for message in reversed(messages)
+            if getattr(message, "type", "") == "ai"
+            and getattr(message, "content", "")
+        ),
+        "",
+    )
+    if not isinstance(content, str):
+        raise ValueError("Final Agent message must contain JSON text.")
+    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL | re.IGNORECASE)
+    payload = json.loads(fenced.group(1) if fenced else content)
+    if isinstance(payload, list):
+        payload = {"selections": payload}
+    return _EvidenceSelectionOutput.model_validate(payload).selections
 
 
-def _rank_evidence(evidence: list[EvidenceItem]) -> list[EvidenceItem]:
-    section_priority = {"project": 3, "internship": 3, "skill": 1, "education": 0, "other": 0}
-    return sorted(
-        evidence,
-        key=lambda item: (section_priority.get(item.section_type, 0), item.score),
-        reverse=True,
+def _validate_selections(
+    state: AnalysisState,
+    selections: list[EvidenceSelection],
+    quality_gate: PublicOutputQualityGate,
+) -> list[QualityIssue]:
+    issues = quality_gate.validate_evidence_allowlist(
+        {
+            f"evidence_selections.{index}.selected_evidence_ids": item.selected_evidence_ids
+            for index, item in enumerate(selections)
+        },
+        state.allowed_evidence_ids,
+    )
+    expected_ids = {item.requirement_id for item in state.jd_requirements}
+    actual_ids = {item.requirement_id for item in selections}
+    for requirement_id in sorted(expected_ids - actual_ids):
+        issues.append(
+            _quality_issue(
+                "MISSING_EVIDENCE_SELECTION",
+                "evidence_selections",
+                "Return exactly one selection for every provided JD requirement.",
+            )
+        )
+    if actual_ids - expected_ids or len(actual_ids) != len(selections):
+        issues.append(
+            _quality_issue(
+                "INVALID_REQUIREMENT_REFERENCE",
+                "evidence_selections",
+                "Use each provided requirement ID exactly once.",
+            )
+        )
+    if selections and not any(item.selected_evidence_ids for item in selections):
+        issues.append(
+            _quality_issue(
+                "NO_USABLE_EVIDENCE",
+                "evidence_selections",
+                "Search additional project, internship, skill, or education evidence before concluding.",
+            )
+        )
+
+    evidence_by_id = {item.evidence_id: item for item in state.retrieved_evidence}
+    for index, selection in enumerate(selections):
+        chunk_ids = [
+            evidence_by_id[evidence_id].chunk_id
+            for evidence_id in selection.selected_evidence_ids
+            if evidence_id in evidence_by_id
+        ]
+        if len(chunk_ids) != len(set(chunk_ids)):
+            issues.append(
+                _quality_issue(
+                    "DUPLICATE_EVIDENCE_CHUNK",
+                    f"evidence_selections.{index}.selected_evidence_ids",
+                    "Remove duplicate references to the same resume chunk.",
+                )
+            )
+    return sorted(issues, key=lambda issue: (issue.field_path, issue.code))
+
+
+def _quality_issue(code: str, field_path: str, instruction: str) -> QualityIssue:
+    return QualityIssue(
+        code=code,
+        field_path=field_path,
+        message="Resume evidence output failed deterministic validation.",
+        retry_instruction=instruction,
+        severity="high",
     )
 
 
-def _has_usable_evidence(evidence: list[EvidenceItem]) -> bool:
-    return any(item.section_type != "skill" for item in evidence)
+def _trace_summary(steps) -> str:
+    tools = ",".join(step.tool_name for step in steps) or "none"
+    statuses = ",".join(step.status for step in steps) or "none"
+    return f"steps={len(steps)} tools={tools} statuses={statuses}"
 
 
-def _evidence_summary(evidence: list[EvidenceItem]) -> str:
-    if not evidence:
-        return "0 evidence items."
-    labels = [
-        f"{item.evidence_id}:{item.section_type}:score={round(item.score, 3)}"
-        for item in evidence[:5]
-    ]
-    return f"{len(evidence)} evidence item(s): {', '.join(labels)}."
+class _DeterministicResumeEvidenceChatModel(BaseChatModel):
+    """Tool-calling test/local model; real providers use ReActModelFactory."""
+
+    @property
+    def _llm_type(self) -> str:
+        return "deterministic-resume-evidence-tool-model"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager=None,
+        **kwargs,
+    ) -> ChatResult:
+        requirements = _requirements_from_messages(messages)
+        tool_payloads = _tool_payloads(messages)
+        if not tool_payloads:
+            message = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "search_resume_evidence",
+                        "args": {
+                            "query": item.get("text", ""),
+                            "requirement_id": item.get("requirement_id"),
+                            "top_k": 5,
+                        },
+                        "id": f"search_{index}",
+                        "type": "tool_call",
+                    }
+                    for index, item in enumerate(requirements, start=1)
+                ],
+            )
+        else:
+            evidence = [
+                item
+                for payload in tool_payloads
+                for item in payload.get("data", {}).get("evidence", [])
+            ]
+            selections = []
+            for requirement in requirements:
+                requirement_id = requirement.get("requirement_id", "")
+                matching = [
+                    item
+                    for item in evidence
+                    if item.get("requirement_id") == requirement_id
+                ]
+                experience_evidence = [
+                    item
+                    for item in matching
+                    if item.get("section_type") in {"project", "internship"}
+                ]
+                if experience_evidence:
+                    selected = experience_evidence
+                    level = "strong"
+                    support_types = ["direct"]
+                elif matching:
+                    selected = matching
+                    level = "partial"
+                    support_types = ["contextual"]
+                else:
+                    selected = []
+                    level = "missing"
+                    support_types = ["insufficient"]
+                selections.append(
+                    {
+                        "requirement_id": requirement_id,
+                        "selected_evidence_ids": [
+                            item.get("evidence_id") for item in selected
+                        ],
+                        "support_level": level,
+                        "support_types": support_types,
+                        "rationale": (
+                            "Deterministic local mode selected evidence returned by the search tool."
+                        ),
+                        "uncovered_aspects": (
+                            [] if selected else ["No usable evidence was returned."]
+                        ),
+                    }
+                )
+            message = AIMessage(
+                content=json.dumps({"selections": selections}, ensure_ascii=False)
+            )
+        return ChatResult(generations=[ChatGeneration(message=message)])
+
+
+def _requirements_from_messages(messages: list[BaseMessage]) -> list[dict[str, Any]]:
+    human_content = next(
+        (
+            str(message.content)
+            for message in messages
+            if getattr(message, "type", "") == "human"
+        ),
+        "[]",
+    )
+    start = human_content.find("[")
+    if start < 0:
+        return []
+    try:
+        requirements, _ = json.JSONDecoder().raw_decode(human_content[start:])
+    except json.JSONDecodeError:
+        return []
+    return requirements if isinstance(requirements, list) else []
+
+
+def _tool_payloads(messages: list[BaseMessage]) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for message in messages:
+        if getattr(message, "type", "") != "tool":
+            continue
+        content = message.content
+        try:
+            payload = json.loads(content) if isinstance(content, str) else content
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            payloads.append(payload)
+    return payloads

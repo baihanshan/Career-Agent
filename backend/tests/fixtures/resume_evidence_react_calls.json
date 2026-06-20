@@ -1,0 +1,47 @@
+{
+  "insufficient_then_compare": {
+    "responses": [
+      {
+        "tool_call": {
+          "name": "search_resume_evidence",
+          "args": {
+            "query": "Python engineering",
+            "requirement_id": "req_python"
+          },
+          "id": "call_search"
+        }
+      },
+      {
+        "tool_call": {
+          "name": "get_experience",
+          "args": {
+            "experience_id": "exp_api"
+          },
+          "id": "call_experience"
+        }
+      },
+      {
+        "tool_call": {
+          "name": "compare_requirement_to_evidence",
+          "args": {
+            "requirement_id": "req_python",
+            "evidence_ids": ["ev_skill"]
+          },
+          "id": "call_compare"
+        }
+      },
+      {
+        "selections": [
+          {
+            "requirement_id": "req_python",
+            "selected_evidence_ids": ["ev_skill"],
+            "support_level": "partial",
+            "support_types": ["contextual"],
+            "rationale": "The skill entry supports Python familiarity but not engineering depth.",
+            "uncovered_aspects": ["Applied engineering evidence remains limited."]
+          }
+        ]
+      }
+    ]
+  }
+}

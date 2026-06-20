@@ -26,9 +26,9 @@ from backend.app.workflow.state import WorkflowState
 
 _INTERNAL_REFERENCE_PATTERNS = (
     re.compile(
-        r"(?i)\b(?:evidence_ids?|supporting_evidence_ids?|requirement_ids?|chunk_ids?)\b\s*[:=]"
+        r"(?i)\b(?:evidence_ids?|supporting_evidence_ids?|requirement_ids?|chunk_ids?|experience_ids?)\b\s*[:=]"
     ),
-    re.compile(r"(?<![A-Za-z0-9])(?:req|ev|chunk)_[A-Za-z0-9][A-Za-z0-9_.:-]*"),
+    re.compile(r"(?<![A-Za-z0-9])(?:req|ev|chunk|exp)_[A-Za-z0-9][A-Za-z0-9_.:-]*"),
 )
 
 

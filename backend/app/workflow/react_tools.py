@@ -60,6 +60,7 @@ class StructuredToolResult(BaseModel):
 
 class SearchResumeEvidenceArgs(BaseModel):
     query: str
+    requirement_id: str | None = None
     section_types: list[ResumeSectionType] = Field(default_factory=list)
     top_k: int = Field(default=5, ge=1, le=20)
 
@@ -98,11 +99,12 @@ def build_structured_react_tools(
     state: WorkflowState,
     agent_name: str,
     recorder: TraceRecorder,
+    retrieval_service: Any | None = None,
 ) -> list[StructuredTool]:
     if agent_name not in REACT_AGENT_TOOL_ALLOWLIST:
         raise ValueError(f"Unknown ReAct agent: {agent_name}")
 
-    registry = _tool_registry(state, recorder)
+    registry = _tool_registry(state, recorder, retrieval_service)
     allowed = REACT_AGENT_TOOL_ALLOWLIST[agent_name]
     return [registry[name] for name in sorted(allowed)]
 
@@ -110,6 +112,7 @@ def build_structured_react_tools(
 def _tool_registry(
     state: WorkflowState,
     recorder: TraceRecorder,
+    retrieval_service: Any | None,
 ) -> dict[str, StructuredTool]:
     return {
         "search_resume_evidence": _structured_tool(
@@ -118,8 +121,13 @@ def _tool_registry(
             "search_resume_evidence",
             "Search typed resume evidence by section and return evidence records.",
             SearchResumeEvidenceArgs,
-            lambda query, section_types, top_k: _search_resume_evidence(
-                state, section_types, top_k
+            lambda query, requirement_id, section_types, top_k: _search_resume_evidence(
+                state,
+                query,
+                requirement_id,
+                section_types,
+                top_k,
+                retrieval_service,
             ),
         ),
         "get_experience": _structured_tool(
@@ -264,13 +272,35 @@ def _structured_tool(
 
 def _search_resume_evidence(
     state: WorkflowState,
+    query: str,
+    requirement_id: str | None,
     section_types: list[ResumeSectionType],
     top_k: int,
+    retrieval_service: Any | None,
 ) -> StructuredToolResult:
+    if retrieval_service is not None:
+        requirements = [
+            item
+            for item in state.jd_requirements
+            if requirement_id is None or item.requirement_id == requirement_id
+        ]
+        if not requirements:
+            return _error("The requested requirement was not found.")
+        retrieved = retrieval_service.retrieve_evidence(
+            requirements=requirements,
+            top_k=top_k,
+            section_filter=section_types or None,
+        )
+        existing_by_id = {item.evidence_id: item for item in state.retrieved_evidence}
+        for item in retrieved:
+            existing_by_id[item.evidence_id] = item
+        state.retrieved_evidence[:] = list(existing_by_id.values())
+
     evidence = [
         item
         for item in state.retrieved_evidence
-        if not section_types or item.section_type in section_types
+        if (requirement_id is None or item.requirement_id == requirement_id)
+        and (not section_types or item.section_type in section_types)
     ][:top_k]
     state.allowed_evidence_ids.update(item.evidence_id for item in evidence)
     return _success(
@@ -456,7 +486,11 @@ def _rank_candidate_risks(
 def _arguments_summary(arguments: dict[str, Any], state: WorkflowState) -> str:
     parts: list[str] = []
     for key, value in arguments.items():
-        if key in {"query", "claim"}:
+        if key in {"requirement_id", "experience_id"}:
+            parts.append("internal_reference=provided")
+        elif key == "evidence_ids":
+            parts.append(f"internal_reference_count={len(value)}")
+        elif key in {"query", "claim"}:
             rendered = _redact(str(value), state)
             parts.append(f"{key}={rendered[:80]}")
         elif isinstance(value, list):
