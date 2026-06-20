@@ -150,6 +150,7 @@ class AgentToolResult(BaseModel):
     arguments_summary: str
     return_summary: str
     status: ToolStatus
+    attempt_number: int = Field(default=1, ge=1)
 
     @field_validator("tool_name", "arguments_summary", "return_summary", "status")
     @classmethod

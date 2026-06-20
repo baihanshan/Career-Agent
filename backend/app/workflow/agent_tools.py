@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+import re
 
 from backend.app.api.schemas import (
     AgentToolResult,
@@ -36,12 +37,38 @@ AGENT_TOOL_ALLOWLIST = {
 
 
 class TraceRecorder:
-    def __init__(self, agent_name: str) -> None:
+    def __init__(self, agent_name: str, attempt_number: int = 1) -> None:
         self.agent_name = agent_name
+        self.attempt_number = attempt_number
         self.steps: list[AgentToolResult] = []
 
     def record(self, result: AgentToolResult) -> None:
-        self.steps.append(result)
+        self.steps.append(
+            result.model_copy(
+                update={
+                    "arguments_summary": _summary(result.arguments_summary),
+                    "return_summary": _summary(result.return_summary),
+                    "attempt_number": self.attempt_number,
+                }
+            )
+        )
+
+    def record_tool_call(
+        self,
+        *,
+        tool_name: str,
+        arguments_summary: str,
+        return_summary: str,
+        status: str,
+    ) -> None:
+        self.record(
+            AgentToolResult(
+                tool_name=tool_name,
+                arguments_summary=arguments_summary,
+                return_summary=return_summary,
+                status=status,
+            )
+        )
 
     def attach_to_state(
         self,
@@ -250,6 +277,16 @@ def _evidence_label(evidence: EvidenceItem) -> str:
 
 def _summary(value: str, limit: int = 320) -> str:
     sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    sanitized = re.sub(
+        r"(?i)(?:api[_-]?key\s*[=:]\s*|bearer\s+|sk-)[^\s,;]+",
+        "[redacted]",
+        sanitized,
+    )
+    sanitized = re.sub(
+        r"(?i)hidden\s+(?:chain[- ]of[- ]thought|reasoning)",
+        "[redacted]",
+        sanitized,
+    )
     sanitized = " ".join(sanitized.split())
     if len(sanitized) <= limit:
         return sanitized

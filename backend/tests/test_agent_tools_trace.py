@@ -82,7 +82,7 @@ def test_agent_tools_return_summaries_without_full_hidden_prompt_text():
 
 def test_trace_recorder_serializes_steps_to_frontend_response():
     state = _state_with_sensitive_details()
-    recorder = TraceRecorder(agent_name="resume_evidence")
+    recorder = TraceRecorder(agent_name="resume_evidence", attempt_number=2)
     recorder.record(
         AgentToolResult(
             tool_name="get_resume_section",
@@ -106,6 +106,7 @@ def test_trace_recorder_serializes_steps_to_frontend_response():
                     "arguments_summary": "section_type=project",
                     "return_summary": "1 project section found.",
                     "status": "success",
+                    "attempt_number": 2,
                 }
             ],
             "final_decision_summary": "Use project evidence first.",

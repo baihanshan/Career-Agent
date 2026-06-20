@@ -33,7 +33,7 @@
 - [x] `domain-models.md`：Experience、EvidenceSelection、NumericClaim、QualityIssue 等内部模型。
 - [x] `experience-structure.md`：按单个项目/实习生成 ExperienceRecord 和检索单元。
 - [x] `requirement-semantics.md`：JD verification mode、interviewability、capability tags 和 OR 逻辑。
-- [ ] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
+- [x] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
 - [ ] `public-output-boundary.md`：internal/public model 分离与 ID 泄露阻断。
 - [ ] `quality-gates.md`：证据、重复、复制、问题、答案和风险一致性门禁。
 - [ ] `resume-evidence-react-agent.md`：真实 LLM ReAct 证据检索和语义支持判断。
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md` 已完成；下一任务为 `structured-agent-tools.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md` 已完成；下一任务为 `public-output-boundary.md`，尚未开始。
