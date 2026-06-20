@@ -34,7 +34,7 @@
 - [x] `experience-structure.md`：按单个项目/实习生成 ExperienceRecord 和检索单元。
 - [x] `requirement-semantics.md`：JD verification mode、interviewability、capability tags 和 OR 逻辑。
 - [x] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
-- [ ] `public-output-boundary.md`：internal/public model 分离与 ID 泄露阻断。
+- [x] `public-output-boundary.md`：internal/public model 分离与 ID 泄露阻断。
 - [ ] `quality-gates.md`：证据、重复、复制、问题、答案和风险一致性门禁。
 - [ ] `resume-evidence-react-agent.md`：真实 LLM ReAct 证据检索和语义支持判断。
 - [ ] `resume-bullet-safety.md`：简历要点证据约束和 public 输出安全。
@@ -50,7 +50,7 @@
 
 - [x] ReAct ChatModel 可用且不支持 tool calling 时快速失败。
 - [x] Internal domain models 完成。
-- [ ] Internal/Public output 边界完成。
+- [x] Internal/Public output 边界完成。
 
 ### Phase 2：结构化简历、JD 与工具
 
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md` 已完成；下一任务为 `public-output-boundary.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md` 已完成；下一任务为 `quality-gates.md`，尚未开始。

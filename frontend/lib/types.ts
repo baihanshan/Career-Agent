@@ -53,47 +53,37 @@ export interface ProfileChunk {
 }
 
 export interface JDRequirement {
-  requirement_id: string;
   category: RequirementCategory;
   text: string;
   importance: Importance;
-  keywords: string[];
+  capability_tags: string[];
+  verification_mode:
+    | "document_check"
+    | "evidence_check"
+    | "technical_question"
+    | "system_design"
+    | "behavioral_question";
+  interviewability: boolean;
+  question_focus?: string | null;
+  logical_operator: "AND" | "OR";
+  alternatives: string[];
 }
 
 export interface MatchItem {
-  requirement_id: string;
+  requirement_text: string;
   match_level: MatchLevel;
   rationale: string;
-  evidence_ids: string[];
   gap_note?: string | null;
-}
-
-export interface MatchStrategyItem {
-  evidence_id: string;
-  section_type: ProfileSectionType;
-  priority_score: number;
-  rationale: string;
-  requirement_id?: string | null;
-}
-
-export interface MatchStrategy {
-  ranked_evidence: MatchStrategyItem[];
-  covered_requirement_ids: string[];
-  missing_requirement_ids: string[];
-  summary?: string | null;
 }
 
 export interface ResumeBullet {
   text: string;
-  target_requirement_ids: string[];
-  evidence_ids: string[];
   risk_level: RiskLevel;
 }
 
 export interface InterviewPrepQuestion {
   question: string;
   sample_answer: string;
-  supporting_evidence_ids: string[];
 }
 
 export interface InterviewPrep {
@@ -109,15 +99,13 @@ export interface GeneratedAssets {
 
 export interface GroundingWarning {
   asset_type: "resume_bullet" | "match_summary" | "interview_prep";
-  asset_id: string;
   claim: string;
   reason: string;
   severity: Severity;
 }
 
 export interface CoverageGap {
-  requirement_id: string;
-  requirement_text?: string | null;
+  requirement_text: string;
   reason: string;
   severity: Severity;
 }
@@ -133,6 +121,7 @@ export interface AgentToolResult {
   arguments_summary: string;
   return_summary: string;
   status: "success" | "error";
+  attempt_number: number;
 }
 
 export interface AgentTrace {
@@ -166,7 +155,6 @@ export interface RiskReport {
 export interface AnalysisResult {
   jd_requirements: JDRequirement[];
   match_analysis: MatchItem[];
-  match_strategy?: MatchStrategy | null;
   generated_assets: GeneratedAssets;
   evaluation_report: EvaluationReport;
   risk_report?: RiskReport | null;

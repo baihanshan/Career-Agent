@@ -242,6 +242,79 @@ class RiskReport(BaseModel):
     risks: list[RiskItem] = Field(default_factory=list, max_length=3)
 
 
+class PublicJDRequirement(BaseModel):
+    category: RequirementCategory
+    text: str
+    importance: Importance
+    capability_tags: list[str] = Field(default_factory=list)
+    verification_mode: VerificationModeValue
+    interviewability: bool
+    question_focus: str | None = None
+    logical_operator: LogicalOperator
+    alternatives: list[str] = Field(default_factory=list)
+
+
+class PublicMatchItem(BaseModel):
+    requirement_text: str
+    match_level: MatchLevel
+    rationale: str
+    gap_note: str | None = None
+
+
+class PublicResumeBullet(BaseModel):
+    text: str
+    risk_level: RiskLevel
+
+
+class PublicInterviewPrepQuestion(BaseModel):
+    question: str
+    sample_answer: str
+
+
+class PublicInterviewPrep(BaseModel):
+    jd_questions: list[PublicInterviewPrepQuestion] = Field(default_factory=list)
+    resume_deep_dive_questions: list[PublicInterviewPrepQuestion] = Field(
+        default_factory=list
+    )
+
+
+class PublicGeneratedAssets(BaseModel):
+    match_summary: str
+    resume_bullets: list[PublicResumeBullet] = Field(default_factory=list, max_length=3)
+    interview_prep: PublicInterviewPrep
+
+
+class PublicGroundingWarning(BaseModel):
+    asset_type: AssetType
+    claim: str
+    reason: str
+    severity: Severity
+
+
+class PublicCoverageGap(BaseModel):
+    requirement_text: str
+    reason: str
+    severity: Severity
+
+
+class PublicEvaluationReport(BaseModel):
+    grounding_warnings: list[PublicGroundingWarning] = Field(default_factory=list)
+    coverage_gaps: list[PublicCoverageGap] = Field(default_factory=list)
+    specificity_notes: list[str] = Field(default_factory=list)
+    risk_summary: str
+    overall_status: OverallStatus
+
+
+class PublicAnalysisResult(BaseModel):
+    jd_requirements: list[PublicJDRequirement] = Field(default_factory=list)
+    match_analysis: list[PublicMatchItem] = Field(default_factory=list)
+    generated_assets: PublicGeneratedAssets | None = None
+    evaluation_report: PublicEvaluationReport | None = None
+    risk_report: RiskReport | None = None
+    processing_warnings: list[dict[str, Any]] = Field(default_factory=list)
+    agent_traces: list[AgentTrace] = Field(default_factory=list)
+
+
 class GeneratedAssets(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

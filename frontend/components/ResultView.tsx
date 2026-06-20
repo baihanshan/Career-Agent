@@ -66,10 +66,7 @@ function InterviewQuestionGroup({
     <div className="prep-list">
       <h3>{title}</h3>
       {questions.map((item, questionIndex) => (
-        <article
-          className="prep-item"
-          key={`${item.supporting_evidence_ids.join("-")}-${questionIndex}`}
-        >
+        <article className="prep-item" key={`${title}-${questionIndex}`}>
           <h3>{item.question}</h3>
           <p>{item.sample_answer}</p>
         </article>

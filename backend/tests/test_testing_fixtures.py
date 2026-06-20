@@ -59,7 +59,7 @@ def test_complete_workflow_fixture_produces_evidence_bullet_and_evaluation():
     assert response.status == "completed"
     assert "evidence_table" not in response.result
     assert len(response.result["generated_assets"]["resume_bullets"]) >= 1
-    assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"]
+    assert "evidence_ids" not in response.result["generated_assets"]["resume_bullets"][0]
     assert response.result["agent_traces"][0]["agent_name"] == "resume_evidence"
     assert response.result["evaluation_report"]["overall_status"] in {
         "pass",

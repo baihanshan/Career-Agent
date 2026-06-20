@@ -38,6 +38,22 @@ def test_agent_failure_response_has_no_partial_result_or_internal_details():
     assert "SYSTEM_PROMPT_SECRET" not in serialized
 
 
+def test_success_response_exposes_no_internal_reference_fields_or_values():
+    response = run_workflow(request=_request(), services=_services())
+    serialized = json.dumps(response.model_dump(mode="json"))
+
+    assert response.status == "completed"
+    for forbidden in (
+        '"evidence_ids"',
+        '"requirement_id"',
+        '"chunk_id"',
+        "req_python",
+        "ev_",
+        "chunk_",
+    ):
+        assert forbidden not in serialized
+
+
 def test_agent_failure_log_contains_agent_tool_reason_and_trace_summary(caplog):
     with caplog.at_level(logging.ERROR, logger="backend.app.workflow.nodes"):
         response = run_workflow(request=_weak_request(), services=_services())

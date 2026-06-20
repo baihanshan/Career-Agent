@@ -131,11 +131,10 @@ def test_finalize_response_outputs_completed_api_response_result():
     response = finalize_response(state)
 
     assert response.status == "completed"
-    assert response.result["jd_requirements"][0]["requirement_id"] == "req_python"
-    assert response.result["match_strategy"] is None
-    assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"] == [
-        "ev_python"
-    ]
+    assert response.result["jd_requirements"][0]["text"] == "Python API development"
+    assert "requirement_id" not in response.result["jd_requirements"][0]
+    assert "match_strategy" not in response.result
+    assert "evidence_ids" not in response.result["generated_assets"]["resume_bullets"][0]
 
 
 def test_vector_store_failure_returns_indexing_error_response():

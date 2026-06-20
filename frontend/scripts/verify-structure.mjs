@@ -62,6 +62,11 @@ if (riskWarnings.includes("未覆盖要求：{gap.requirement_id}")) {
   process.exit(1);
 }
 
+if (riskWarnings.includes("warning.asset_id") || riskWarnings.includes("gap.requirement_id")) {
+  console.error("Risk warning keys must not depend on internal IDs.");
+  process.exit(1);
+}
+
 const outputOrder = ["匹配总结", "简历要点", "面试准备", "<RiskWarnings", "<AgentTraceDetails"];
 const outputPositions = outputOrder.map((label) => resultView.indexOf(label));
 if (
@@ -94,9 +99,10 @@ if (!resultView.includes("<details") || resultView.includes("<details open")) {
 
 if (
   resultView.includes("key={item.question}") ||
-  !resultView.includes("item.supporting_evidence_ids")
+  resultView.includes("item.supporting_evidence_ids") ||
+  !resultView.includes('key={`${title}-${questionIndex}`}')
 ) {
-  console.error("Interview question keys must remain unique when question text repeats.");
+  console.error("Interview question keys must not depend on internal evidence IDs.");
   process.exit(1);
 }
 

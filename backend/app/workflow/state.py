@@ -20,6 +20,7 @@ from backend.app.workflow.domain_models import (
     EvidenceSelection,
     ExperienceRecord,
     QualityIssue,
+    InternalRiskReport,
 )
 
 
@@ -41,6 +42,7 @@ class WorkflowState(BaseModel):
     match_strategy: MatchStrategy | None = None
     generated_assets: GeneratedAssets | None = None
     risk_report: RiskReport | None = None
+    internal_risk_report: InternalRiskReport | None = None
     agent_traces: list[AgentTrace] = Field(default_factory=list)
     evaluation_report: EvaluationReport | None = None
     quality_issues: list[QualityIssue] = Field(default_factory=list)

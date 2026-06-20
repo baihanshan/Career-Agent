@@ -84,11 +84,13 @@ def test_complete_sprint2_workflow_matches_final_product_contract():
     bullets = response.result["generated_assets"]["resume_bullets"]
     assert len(bullets) == 3
     evidence_by_id = {item.evidence_id: item for item in state.retrieved_evidence}
+    internal_bullets = state.generated_assets.resume_bullets
     assert all(
         evidence_by_id[evidence_id].section_type in {"project", "internship"}
-        for bullet in bullets
-        for evidence_id in bullet["evidence_ids"]
+        for bullet in internal_bullets
+        for evidence_id in bullet.evidence_ids
     )
+    assert all("evidence_ids" not in bullet for bullet in bullets)
 
     risks = response.result["risk_report"]["risks"]
     assert len(risks) <= 3

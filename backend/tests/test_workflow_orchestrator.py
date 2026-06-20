@@ -33,7 +33,8 @@ def test_successful_workflow_returns_all_sprint2_modules():
     response = run_workflow(request=_request(), services=_services())
 
     assert response.status == "completed"
-    assert response.result["match_strategy"] is not None
+    assert response.result["match_analysis"]
+    assert "match_strategy" not in response.result
     assert len(response.result["generated_assets"]["resume_bullets"]) == 3
     assert response.result["generated_assets"]["interview_prep"]["jd_questions"]
     assert response.result["risk_report"] is not None

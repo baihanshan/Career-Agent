@@ -43,8 +43,8 @@ export function RiskWarnings({ report, riskReport }: RiskWarningsProps) {
       <h2>风险提示</h2>
       <p className="risk-summary">{report.risk_summary}</p>
       <div className="warning-list">
-        {report.grounding_warnings.map((warning) => (
-          <article className="warning-item" key={`${warning.asset_id}-${warning.claim}`}>
+        {report.grounding_warnings.map((warning, warningIndex) => (
+          <article className="warning-item" key={`${warning.claim}-${warningIndex}`}>
             <span className={`severity severity-${warning.severity}`}>
               严重程度：{severityLabels[warning.severity]}
             </span>
@@ -52,12 +52,12 @@ export function RiskWarnings({ report, riskReport }: RiskWarningsProps) {
             <p>{warning.reason}</p>
           </article>
         ))}
-        {report.coverage_gaps.map((gap) => (
-          <article className="warning-item" key={gap.requirement_id}>
+        {report.coverage_gaps.map((gap, gapIndex) => (
+          <article className="warning-item" key={`${gap.requirement_text}-${gapIndex}`}>
             <span className={`severity severity-${gap.severity}`}>
               严重程度：{severityLabels[gap.severity]}
             </span>
-            <strong>未覆盖要求：{gap.requirement_text ?? gap.reason}</strong>
+            <strong>未覆盖要求：{gap.requirement_text}</strong>
             <p>{gap.reason}</p>
           </article>
         ))}

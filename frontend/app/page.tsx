@@ -37,6 +37,7 @@ const WORKFLOW_ERROR_MESSAGES: Record<string, string> = {
   INTERVIEW_PREP_AGENT_ERROR: "面试准备生成失败，请稍后重试。",
   RISK_AUDITOR_AGENT_ERROR: "风险评估失败，请稍后重试。",
   VECTOR_STORE_ERROR: "个人材料处理失败，请稍后重试。",
+  INTERNAL_ID_LEAK: "生成结果包含内部引用，系统已阻止展示，请重新分析。",
 };
 
 export default function Home() {

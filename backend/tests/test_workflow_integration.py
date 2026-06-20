@@ -29,10 +29,11 @@ def test_sample_profile_and_jd_run_to_final_response():
     response = run_workflow(request=_request(), services=_services())
 
     assert response.status == "completed"
-    assert response.result["jd_requirements"][0]["requirement_id"] == "req_python"
+    assert response.result["jd_requirements"][0]["text"] == "Python API development"
+    assert "requirement_id" not in response.result["jd_requirements"][0]
     assert "evidence_table" not in response.result
     assert response.result["match_analysis"][0]["match_level"] == "strong"
-    assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"]
+    assert "evidence_ids" not in response.result["generated_assets"]["resume_bullets"][0]
     assert response.result["evaluation_report"]["overall_status"] in {
         "pass",
         "pass_with_warnings",
@@ -65,7 +66,7 @@ def test_run_analysis_service_uses_workflow_result():
     assert response["status"] == "completed"
     assert response["result"]["jd_requirements"]
     assert "evidence_table" not in response["result"]
-    assert response["result"]["generated_assets"]["resume_bullets"][0]["evidence_ids"]
+    assert "evidence_ids" not in response["result"]["generated_assets"]["resume_bullets"][0]
 
 
 def test_run_analysis_service_returns_chinese_generated_content():

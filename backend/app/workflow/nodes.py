@@ -20,6 +20,10 @@ from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.service import RetrievalService
 from backend.app.workflow.match_scoring import build_match_strategy, score_matches
+from backend.app.workflow.public_output import (
+    PublicOutputValidationError,
+    project_public_result,
+)
 from backend.app.workflow.interview_prep_agent import (
     InterviewPrepAgent,
     InterviewPrepAgentError,
@@ -272,44 +276,24 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
             error={"code": error.code, "message": error.message},
         )
 
+    try:
+        public_result = project_public_result(state)
+    except PublicOutputValidationError:
+        return AnalysisResponse(
+            analysis_id=state.analysis_id,
+            status="failed",
+            error={
+                "code": "INTERNAL_ID_LEAK",
+                "message": (
+                    "Generated output contained an internal reference and was not displayed."
+                ),
+            },
+        )
+
     return AnalysisResponse(
         analysis_id=state.analysis_id,
         status="completed",
-        result={
-            "profile_chunks": [item.model_dump(mode="json") for item in state.profile_chunks],
-            "jd_requirements": [
-                item.model_dump(mode="json") for item in state.jd_requirements
-            ],
-            "match_analysis": [
-                item.model_dump(mode="json") for item in state.match_analysis
-            ],
-            "match_strategy": (
-                state.match_strategy.model_dump(mode="json")
-                if state.match_strategy is not None
-                else None
-            ),
-            "generated_assets": (
-                state.generated_assets.model_dump(mode="json")
-                if state.generated_assets is not None
-                else None
-            ),
-            "evaluation_report": (
-                state.evaluation_report.model_dump(mode="json")
-                if state.evaluation_report is not None
-                else None
-            ),
-            "risk_report": (
-                state.risk_report.model_dump(mode="json")
-                if state.risk_report is not None
-                else None
-            ),
-            "processing_warnings": [
-                warning.model_dump(mode="json") for warning in state.processing_warnings
-            ],
-            "agent_traces": [
-                trace.model_dump(mode="json") for trace in state.agent_traces
-            ],
-        },
+        result=public_result.model_dump(mode="json"),
     )
 
 

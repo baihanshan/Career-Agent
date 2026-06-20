@@ -287,6 +287,11 @@ def _summary(value: str, limit: int = 320) -> str:
         "[redacted]",
         sanitized,
     )
+    sanitized = re.sub(
+        r"(?<![A-Za-z0-9])(?:req|ev|chunk)_[A-Za-z0-9][A-Za-z0-9_.:-]*",
+        "[internal reference]",
+        sanitized,
+    )
     sanitized = " ".join(sanitized.split())
     if len(sanitized) <= limit:
         return sanitized
