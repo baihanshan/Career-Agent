@@ -24,6 +24,14 @@ OverallStatus = Literal["pass", "pass_with_warnings", "fail"]
 AnalysisStatus = Literal["completed", "failed"]
 LLMProvider = Literal["local", "openai", "deepseek", "openai_compatible"]
 ResumeSectionType = Literal["internship", "project", "skill", "education", "other"]
+VerificationModeValue = Literal[
+    "document_check",
+    "evidence_check",
+    "technical_question",
+    "system_design",
+    "behavioral_question",
+]
+LogicalOperator = Literal["AND", "OR"]
 
 
 class RunConfig(BaseModel):
@@ -49,6 +57,12 @@ class JDRequirement(BaseModel):
     text: str
     importance: Importance
     keywords: list[str] = Field(default_factory=list)
+    capability_tags: list[str] = Field(default_factory=list)
+    verification_mode: VerificationModeValue = "evidence_check"
+    interviewability: bool = False
+    question_focus: str | None = None
+    logical_operator: LogicalOperator = "AND"
+    alternatives: list[str] = Field(default_factory=list)
 
     @field_validator("requirement_id", "text")
     @classmethod
@@ -57,6 +71,29 @@ class JDRequirement(BaseModel):
         if not stripped:
             raise ValueError("Field must not be empty.")
         return stripped
+
+    @field_validator("question_focus")
+    @classmethod
+    def strip_optional_question_focus(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("keywords", "capability_tags", "alternatives")
+    @classmethod
+    def normalize_string_lists(cls, values: list[str]) -> list[str]:
+        return list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+    @model_validator(mode="after")
+    def validate_requirement_semantics(self) -> "JDRequirement":
+        if self.verification_mode == "document_check" and self.interviewability:
+            raise ValueError("Document checks cannot be marked interviewable.")
+        if self.interviewability and not self.question_focus:
+            raise ValueError("Interviewable requirements need a question focus.")
+        if self.logical_operator == "OR" and len(self.alternatives) < 2:
+            raise ValueError("OR requirements need at least two alternatives.")
+        return self
 
 
 class EvidenceItem(BaseModel):

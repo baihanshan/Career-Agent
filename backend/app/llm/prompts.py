@@ -5,7 +5,24 @@ Return a top-level JSON object with a "requirements" array.
 Do not wrap the JSON in markdown fences.
 Do not include explanations before or after the JSON.
 Do not fabricate requirements that are not present in the job description.
-Each item in "requirements" should include requirement_id, category, text, importance, and keywords.
+Each item in "requirements" must include requirement_id, category, text, importance,
+keywords, capability_tags, verification_mode, interviewability, question_focus,
+logical_operator, and alternatives.
+Classify verification_mode as exactly one of:
+- document_check: static qualifications visible in documents, such as degree or graduation date.
+- evidence_check: capability that should be verified from resume project/internship evidence.
+- technical_question: technical knowledge and engineering practice.
+- system_design: scenario, platform, architecture, constraints, evaluation, or trade-offs.
+- behavioral_question: collaboration, leadership, decisions, conflict, or retrospectives.
+Set interviewability=false for document_check requirements. Never turn a degree requirement
+into a question asking how the candidate satisfies the degree requirement.
+Every interviewable requirement must have a concise, professional question_focus that names
+the competency, scenario, constraints, or trade-offs to assess. Do not merely restate the JD.
+Use normalized capability_tags such as programming, algorithms, machine_learning, nlp,
+multimodal, platform, evaluation, system_design, communication, or leadership.
+For requirements containing OR, "at least one", "任一", or "至少一个" logic, set
+logical_operator="OR" and preserve each independent branch in alternatives. Do not flatten
+OR branches into a list of capabilities that are all required. Otherwise use "AND".
 Use requirement_id only as an internal stable identifier; never put internal IDs in text.
 The text field must be user-readable JD wording or a concise user-readable summary of the original JD requirement.
 High importance means explicit must-have, required, mandatory, core responsibility, or repeated/high-impact requirement.

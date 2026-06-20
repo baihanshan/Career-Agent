@@ -71,6 +71,32 @@ def test_jd_requirement_rejects_invalid_importance():
         )
 
 
+def test_jd_requirement_rejects_interviewable_requirement_without_question_focus():
+    with pytest.raises(ValidationError):
+        JDRequirement(
+            requirement_id="req_python",
+            category="hard_skill",
+            text="Python engineering",
+            importance="high",
+            keywords=["Python"],
+            verification_mode="technical_question",
+            interviewability=True,
+        )
+
+
+def test_jd_requirement_rejects_or_operator_without_multiple_alternatives():
+    with pytest.raises(ValidationError):
+        JDRequirement(
+            requirement_id="req_domain",
+            category="hard_skill",
+            text="NLP or multimodal",
+            importance="high",
+            keywords=["NLP", "multimodal"],
+            logical_operator="OR",
+            alternatives=["NLP"],
+        )
+
+
 def test_evidence_item_score_must_be_between_zero_and_one():
     with pytest.raises(ValidationError):
         EvidenceItem(

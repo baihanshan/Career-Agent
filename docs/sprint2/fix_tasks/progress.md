@@ -32,7 +32,7 @@
 - [x] `react-model-runtime.md`：支持工具调用的 ReAct ChatModel 和测试模型。
 - [x] `domain-models.md`：Experience、EvidenceSelection、NumericClaim、QualityIssue 等内部模型。
 - [x] `experience-structure.md`：按单个项目/实习生成 ExperienceRecord 和检索单元。
-- [ ] `requirement-semantics.md`：JD verification mode、interviewability、capability tags 和 OR 逻辑。
+- [x] `requirement-semantics.md`：JD verification mode、interviewability、capability tags 和 OR 逻辑。
 - [ ] `structured-agent-tools.md`：结构化工具、allowlist 和安全 trace。
 - [ ] `public-output-boundary.md`：internal/public model 分离与 ID 泄露阻断。
 - [ ] `quality-gates.md`：证据、重复、复制、问题、答案和风险一致性门禁。
@@ -55,7 +55,7 @@
 ### Phase 2：结构化简历、JD 与工具
 
 - [x] 每个项目和实习形成独立 ExperienceRecord。
-- [ ] JD requirement 具备 verification mode 和 interviewability。
+- [x] JD requirement 具备 verification mode 和 interviewability。
 - [ ] 三个 Agent 使用结构化工具和安全 trace。
 
 ### Phase 3：生成与分析 Agent
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md` 已完成；下一任务为 `requirement-semantics.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md` 已完成；下一任务为 `structured-agent-tools.md`，尚未开始。

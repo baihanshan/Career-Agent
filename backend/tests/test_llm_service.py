@@ -44,8 +44,118 @@ def test_fake_client_extracts_sample_jd_requirements():
             text="Build Python APIs",
             importance="high",
             keywords=["Python", "API"],
+            capability_tags=["programming"],
+            verification_mode="technical_question",
+            interviewability=True,
+            question_focus=(
+                "applied technical decisions, alternatives, validation, "
+                "and engineering trade-offs"
+            ),
         )
     ]
+
+
+def test_degree_requirement_defaults_to_non_interviewable_document_check():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_degree",
+                  "category": "qualification",
+                  "text": "计算机相关专业硕士或博士学历",
+                  "importance": "high",
+                  "keywords": ["计算机", "硕士", "博士"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("计算机相关专业硕士或博士学历")[0]
+
+    assert requirement.verification_mode == "document_check"
+    assert requirement.interviewability is False
+    assert requirement.question_focus is None
+
+
+def test_programming_and_algorithm_requirement_gets_technical_semantics():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_programming",
+                  "category": "hard_skill",
+                  "text": "具备扎实的编程基础（Python/C++/Java），熟悉常用算法与数据结构",
+                  "importance": "high",
+                  "keywords": ["Python", "C++", "Java", "算法", "数据结构"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("需要编程、算法与数据结构能力")[0]
+
+    assert requirement.verification_mode == "technical_question"
+    assert requirement.interviewability is True
+    assert {"programming", "algorithms"}.issubset(requirement.capability_tags)
+    assert requirement.question_focus
+
+
+def test_multimodal_platform_responsibility_gets_system_design_focus():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_platform",
+                  "category": "responsibility",
+                  "text": "设计并开发多模态平台，建立模型效果评估体系",
+                  "importance": "high",
+                  "keywords": ["多模态", "平台", "评估"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("设计多模态平台和评估体系")[0]
+
+    assert requirement.verification_mode == "system_design"
+    assert requirement.interviewability is True
+    assert {"multimodal", "platform", "evaluation"}.issubset(
+        requirement.capability_tags
+    )
+    assert all(
+        term in requirement.question_focus.lower()
+        for term in ("platform", "design", "evaluation")
+    )
+
+
+def test_at_least_one_domain_requirement_preserves_or_alternatives():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_domain",
+                  "category": "hard_skill",
+                  "text": "了解 NLP/多模态至少一个领域",
+                  "importance": "high",
+                  "keywords": ["NLP", "多模态"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("了解 NLP/多模态至少一个领域")[0]
+
+    assert requirement.logical_operator == "OR"
+    assert requirement.alternatives == ["NLP", "多模态"]
+    assert {"nlp", "multimodal"}.issubset(requirement.capability_tags)
 
 
 def test_malformed_requirements_json_raises_parse_error():
@@ -166,6 +276,13 @@ def test_extract_jd_requirements_normalizes_common_model_schema_variants():
         text="Python backend development",
         importance="high",
         keywords=["Python", "Backend"],
+        capability_tags=["programming"],
+        verification_mode="technical_question",
+        interviewability=True,
+        question_focus=(
+            "applied technical decisions, alternatives, validation, "
+            "and engineering trade-offs"
+        ),
     )
     assert requirements[1] == JDRequirement(
         requirement_id="req_2",
@@ -173,6 +290,7 @@ def test_extract_jd_requirements_normalizes_common_model_schema_variants():
         text="Strong communication with product stakeholders",
         importance="medium",
         keywords=[],
+        capability_tags=["communication"],
     )
 
 
@@ -206,8 +324,15 @@ def test_extract_jd_requirements_accepts_nested_analysis_wrapper_and_mandatory_p
             requirement_id="req_backend",
             category="hard_skill",
             text="Must have Python backend API experience",
-            importance="high",
-            keywords=["Python", "API"],
+                importance="high",
+                keywords=["Python", "API"],
+                capability_tags=["programming"],
+                verification_mode="technical_question",
+                interviewability=True,
+                question_focus=(
+                    "applied technical decisions, alternatives, validation, "
+                    "and engineering trade-offs"
+                ),
         )
     ]
 

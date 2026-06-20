@@ -136,13 +136,15 @@ def _extract_object_from_wrappers(
 
 def _normalize_jd_requirement(item: Any, index: int) -> dict[str, Any]:
     if isinstance(item, str):
-        return {
+        normalized = {
             "requirement_id": f"req_{index}",
             "category": "responsibility",
             "text": item,
             "importance": "medium",
             "keywords": [],
         }
+        normalized.update(_normalize_requirement_semantics({}, item, "responsibility", []))
+        return normalized
     if not isinstance(item, dict):
         raise ValueError(f"Requirement {index} must be an object or string.")
 
@@ -167,16 +169,83 @@ def _normalize_jd_requirement(item: Any, index: int) -> dict[str, Any]:
         ("requirement_id", "id", "key", "requirementId"),
     ) or f"req_{index}"
 
-    return {
+    category = _normalize_category(
+        _first_text_value(item, ("category", "type", "kind")) or ""
+    )
+    keywords = _normalize_keywords(item.get("keywords") or item.get("skills") or [])
+    normalized = {
         "requirement_id": _safe_requirement_id(requirement_id, index),
-        "category": _normalize_category(
-            _first_text_value(item, ("category", "type", "kind")) or ""
-        ),
+        "category": category,
         "text": text,
         "importance": _normalize_importance(
             _first_text_value(item, ("importance", "priority", "level", "required")) or ""
         ),
-        "keywords": _normalize_keywords(item.get("keywords") or item.get("skills") or []),
+        "keywords": keywords,
+    }
+    normalized.update(_normalize_requirement_semantics(item, text, category, keywords))
+    return normalized
+
+
+def _normalize_requirement_semantics(
+    item: dict[str, Any],
+    text: str,
+    category: str,
+    keywords: list[str],
+) -> dict[str, Any]:
+    capability_tags = _normalize_string_list(
+        item.get("capability_tags") or item.get("capabilities") or []
+    )
+    capability_tags = _dedupe(
+        capability_tags + _infer_capability_tags(" ".join([text, *keywords]))
+    )
+
+    requested_mode = _first_text_value(
+        item,
+        ("verification_mode", "verificationMode", "assessment_mode"),
+    )
+    verification_mode = _normalize_verification_mode(
+        requested_mode,
+        text=text,
+        category=category,
+        capability_tags=capability_tags,
+    )
+    default_interviewability = verification_mode in {
+        "technical_question",
+        "system_design",
+        "behavioral_question",
+    }
+    interviewability = _normalize_boolean(
+        item.get("interviewability", item.get("interviewable")),
+        default=default_interviewability,
+    )
+    if verification_mode == "document_check":
+        interviewability = False
+
+    logical_operator = _normalize_logical_operator(
+        item.get("logical_operator") or item.get("operator"), text
+    )
+    alternatives = _normalize_string_list(
+        item.get("alternatives") or item.get("branches") or []
+    )
+    if logical_operator == "OR" and len(alternatives) < 2:
+        alternatives = _extract_or_alternatives(text)
+
+    question_focus = _first_text_value(
+        item,
+        ("question_focus", "questionFocus", "interview_focus"),
+    )
+    if interviewability and not question_focus:
+        question_focus = _default_question_focus(verification_mode, capability_tags)
+    if not interviewability:
+        question_focus = None
+
+    return {
+        "capability_tags": capability_tags,
+        "verification_mode": verification_mode,
+        "interviewability": interviewability,
+        "question_focus": question_focus,
+        "logical_operator": logical_operator,
+        "alternatives": alternatives,
     }
 
 
@@ -247,6 +316,162 @@ def _normalize_keywords(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in re.split(r"[,;，；]", value) if item.strip()]
     return []
+
+
+def _normalize_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return _dedupe(str(item).strip() for item in value if str(item).strip())
+    if isinstance(value, str):
+        return _dedupe(
+            item.strip()
+            for item in re.split(r"[,;，；]", value)
+            if item.strip()
+        )
+    return []
+
+
+def _dedupe(values) -> list[str]:
+    return list(dict.fromkeys(values))
+
+
+def _infer_capability_tags(text: str) -> list[str]:
+    lowered = text.casefold()
+    rules = (
+        ("programming", ("python", "c++", "java", "编程")),
+        ("algorithms", ("algorithm", "data structure", "算法", "数据结构")),
+        ("machine_learning", ("machine learning", "机器学习", "深度学习")),
+        ("nlp", ("nlp", "natural language", "自然语言")),
+        ("multimodal", ("multimodal", "多模态")),
+        ("platform", ("platform", "平台")),
+        ("evaluation", ("evaluation", "evaluate", "评估")),
+        ("system_design", ("architecture", "system design", "架构", "系统设计")),
+        ("communication", ("communication", "沟通", "协作")),
+        ("leadership", ("leadership", "lead team", "领导", "带领团队")),
+    )
+    return [tag for tag, terms in rules if any(term in lowered for term in terms)]
+
+
+def _normalize_verification_mode(
+    value: str | None,
+    *,
+    text: str,
+    category: str,
+    capability_tags: list[str],
+) -> str:
+    normalized = (value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "document": "document_check",
+        "qualification": "document_check",
+        "evidence": "evidence_check",
+        "technical": "technical_question",
+        "technical_interview": "technical_question",
+        "design": "system_design",
+        "architecture": "system_design",
+        "behavioral": "behavioral_question",
+        "behavioural": "behavioral_question",
+    }
+    normalized = aliases.get(normalized, normalized)
+    known_modes = {
+        "document_check",
+        "evidence_check",
+        "technical_question",
+        "system_design",
+        "behavioral_question",
+    }
+
+    if category == "qualification" or _is_static_qualification(text):
+        return "document_check"
+    if normalized in known_modes:
+        return normalized
+    if "platform" in capability_tags or "system_design" in capability_tags:
+        return "system_design"
+    if category == "hard_skill":
+        return "technical_question"
+    if category == "soft_skill":
+        return "behavioral_question"
+    return "evidence_check"
+
+
+def _is_static_qualification(text: str) -> bool:
+    lowered = text.casefold()
+    return any(
+        term in lowered
+        for term in (
+            "degree",
+            "bachelor",
+            "master",
+            "phd",
+            "doctorate",
+            "学历",
+            "本科",
+            "硕士",
+            "博士",
+            "毕业时间",
+        )
+    )
+
+
+def _normalize_boolean(value: Any, *, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0"}:
+            return False
+    return default
+
+
+def _normalize_logical_operator(value: Any, text: str) -> str:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"OR", "ANY", "ONE_OF", "EITHER"}:
+        return "OR"
+    if normalized in {"AND", "ALL", "ALL_OF"}:
+        return "AND"
+    lowered = text.casefold()
+    if any(
+        marker in lowered
+        for marker in ("至少一个", "任一", "任选", "at least one", "either")
+    ):
+        return "OR"
+    return "AND"
+
+
+def _extract_or_alternatives(text: str) -> list[str]:
+    prefix = re.split(
+        r"至少一个|任一|任选|at least one|either",
+        text,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    clause = re.split(r"[，,；;]", prefix)[-1]
+    clause = re.sub(
+        r"^(?:了解|熟悉|掌握|具备|experience (?:with|in))\s*",
+        "",
+        clause.strip(),
+        flags=re.IGNORECASE,
+    )
+    parts = [
+        re.sub(r"(?:等)?(?:相关)?领域$", "", part.strip()).strip()
+        for part in re.split(r"[/、]|\s+or\s+|或", clause, flags=re.IGNORECASE)
+    ]
+    return _dedupe(part for part in parts if part)
+
+
+def _default_question_focus(
+    verification_mode: str,
+    capability_tags: list[str],
+) -> str:
+    if verification_mode == "system_design":
+        if "multimodal" in capability_tags:
+            return "multimodal platform design, data/model choices, evaluation, and engineering trade-offs"
+        return "system architecture, constraints, design choices, validation, and trade-offs"
+    if verification_mode == "technical_question":
+        if {"programming", "algorithms"}.issubset(capability_tags):
+            return "applied programming and algorithm choices under complexity and reliability constraints"
+        return "applied technical decisions, alternatives, validation, and engineering trade-offs"
+    return "specific decisions, collaboration, outcomes, and reflection from a real experience"
 
 
 def _normalize_generated_assets(

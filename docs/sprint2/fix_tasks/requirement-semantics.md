@@ -10,7 +10,7 @@
 
 ---
 
-状态：待实现
+状态：已完成
 
 ## 依赖
 
@@ -27,20 +27,25 @@
 
 ## 最小任务
 
-- [ ] 编写失败测试：计算机硕士/博士要求被标为 `document_check` 且 `interviewability=false`。
-- [ ] 编写失败测试：Python/算法要求被标为 `technical_question`，包含 programming、algorithms capability tags。
-- [ ] 编写失败测试：多模态平台职责被标为 `system_design` 并给出 platform/design/evaluation question focus。
-- [ ] 编写失败测试：“NLP/多模态至少一个领域”保留 OR 逻辑分支，不能扁平化成全部必需。
-- [ ] 运行 `conda run -n carrer_agent pytest -q backend/tests/test_llm_service.py -k requirement`，确认失败。
-- [ ] 扩展 `JDRequirement`：`capability_tags`、`verification_mode`、`interviewability`、`question_focus`、`logical_operator`、`alternatives`。
-- [ ] 更新 JD Prompt，要求模型区分 document check、evidence check、technical question、system design 和 behavioral question。
-- [ ] 更新 `_normalize_jd_requirement`，为旧响应提供安全默认值，不把 qualification 默认设为可面试。
-- [ ] 运行 `conda run -n carrer_agent pytest -q backend/tests/test_llm_service.py backend/tests/test_schemas.py`，确认通过。
-- [ ] 提交：`git commit -m "feat: classify JD requirement semantics"`。
+- [x] 编写失败测试：计算机硕士/博士要求被标为 `document_check` 且 `interviewability=false`。
+- [x] 编写失败测试：Python/算法要求被标为 `technical_question`，包含 programming、algorithms capability tags。
+- [x] 编写失败测试：多模态平台职责被标为 `system_design` 并给出 platform/design/evaluation question focus。
+- [x] 编写失败测试：“NLP/多模态至少一个领域”保留 OR 逻辑分支，不能扁平化成全部必需。
+- [x] 运行 `conda run -n carrer_agent pytest -q backend/tests/test_llm_service.py -k requirement`，确认失败。
+- [x] 扩展 `JDRequirement`：`capability_tags`、`verification_mode`、`interviewability`、`question_focus`、`logical_operator`、`alternatives`。
+- [x] 更新 JD Prompt，要求模型区分 document check、evidence check、technical question、system design 和 behavioral question。
+- [x] 更新 `_normalize_jd_requirement`，为旧响应提供安全默认值，不把 qualification 默认设为可面试。
+- [x] 运行 `conda run -n carrer_agent pytest -q backend/tests/test_llm_service.py backend/tests/test_schemas.py`，确认通过。
+- [x] 已生成提交命令：`git commit -m "feat: classify JD requirement semantics"`，由用户确认后执行。
+
+## 验证记录
+
+- RED：语义字段不存在，且 schema 未拒绝缺少 focus 或无有效分支的矛盾状态。
+- GREEN：LLM service 与 schema 测试共 39 项通过。
+- 回归：完整后端测试共 213 项通过。
 
 ## 完成标准
 
 - 静态资格要求不会进入技术面试题生成。
 - OR 条件在后续 evidence/risk 判断中可被准确消费。
 - 每条可面试要求都有明确 question focus。
-
