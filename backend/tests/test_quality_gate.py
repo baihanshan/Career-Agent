@@ -5,6 +5,7 @@ from backend.app.evaluation.quality_gate import (
 )
 from backend.app.workflow.domain_models import (
     EvidenceSelection,
+    InterviewAnswerPlan,
     InternalInterviewQuestion,
     InternalRiskItem,
     InternalRiskReport,
@@ -147,6 +148,13 @@ def _question(question: str, answer: str) -> InternalInterviewQuestion:
         question_type="technical",
         competencies_tested=["engineering judgment"],
         target_requirement_ids=["req_1"],
+        answer_plan=InterviewAnswerPlan(
+            direct_answer="Define the reliability target first.",
+            selected_facts=["Built an API."],
+            reasoning_or_tradeoffs="Balance latency, durability, and complexity.",
+            result="Validate with failure injection.",
+            reflection_or_transfer="Adjust the design using observed failure modes.",
+        ),
         sample_answer=answer,
         supporting_evidence_ids=["ev_1"],
     )

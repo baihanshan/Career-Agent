@@ -125,11 +125,30 @@ class QualityIssue(BaseModel):
         return _non_empty(value)
 
 
+class InterviewAnswerPlan(BaseModel):
+    direct_answer: str
+    selected_facts: list[str] = Field(default_factory=list)
+    reasoning_or_tradeoffs: str
+    result: str
+    reflection_or_transfer: str
+
+    @field_validator(
+        "direct_answer",
+        "reasoning_or_tradeoffs",
+        "result",
+        "reflection_or_transfer",
+    )
+    @classmethod
+    def require_non_empty_plan_text(cls, value: str) -> str:
+        return _non_empty(value)
+
+
 class InternalInterviewQuestion(BaseModel):
     question: str
     question_type: str
     competencies_tested: list[str] = Field(default_factory=list)
     target_requirement_ids: list[str] = Field(default_factory=list)
+    answer_plan: InterviewAnswerPlan
     sample_answer: str
     supporting_evidence_ids: list[str] = Field(default_factory=list)
     experience_id: str | None = None

@@ -5,6 +5,7 @@ from backend.app.documents.models import ProfileDocument
 from backend.app.workflow.domain_models import (
     EvidenceSelection,
     ExperienceRecord,
+    InterviewAnswerPlan,
     InternalInterviewPrep,
     InternalInterviewQuestion,
     InternalRiskItem,
@@ -134,6 +135,13 @@ def test_internal_interview_and_risk_models_keep_ids_and_reject_blank_public_tex
         question_type="system_design",
         competencies_tested=["multimodal evaluation", "monitoring"],
         target_requirement_ids=["req_multimodal"],
+        answer_plan=InterviewAnswerPlan(
+            direct_answer="Separate quality, drift, and operational metrics.",
+            selected_facts=["Evaluated multimodal model outputs."],
+            reasoning_or_tradeoffs="Balance detection sensitivity and alert noise.",
+            result="Validate against labeled drift scenarios.",
+            reflection_or_transfer="Tune thresholds using observed failure modes.",
+        ),
         sample_answer="I would separate model quality, drift, and operational metrics.",
         supporting_evidence_ids=["ev_internship_1"],
         experience_id="exp_internship_1",

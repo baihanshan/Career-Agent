@@ -205,7 +205,9 @@ def generate_interview_prep(
     services: WorkflowServices,
 ) -> AnalysisState:
     try:
-        agent = services.interview_prep_agent or InterviewPrepAgent()
+        agent = services.interview_prep_agent or InterviewPrepAgent(
+            model=services.react_model
+        )
         return agent.run(state)
     except InterviewPrepAgentError as exc:
         _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")

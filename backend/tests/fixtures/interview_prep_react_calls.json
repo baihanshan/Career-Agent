@@ -1,0 +1,132 @@
+{
+  "source": {
+    "snippet": "主导搭建端到端语义分割实验平台，完成 DeepLabV3+ 本地部署，并设计轻量级通道注意力模块实现多尺度特征融合"
+  },
+  "python_professional": {
+    "jd_questions": [
+      {
+        "question": "如果要为高并发 AI 数据处理服务设计任务队列，你会如何选择 Python 并发模型与核心数据结构，并在内存开销、延迟和故障恢复之间做权衡？",
+        "question_type": "system_design",
+        "competencies_tested": ["并发设计", "数据结构", "可靠性权衡"],
+        "target_requirement_ids": ["req_python"],
+        "answer_plan": {
+          "direct_answer": "先按任务特征拆分计算与 I/O 路径。",
+          "selected_facts": ["曾负责 Python 服务与可靠性设计。"],
+          "reasoning_or_tradeoffs": "比较进程、协程、队列和缓存的成本。",
+          "result": "用延迟、吞吐和恢复时间验证方案。",
+          "reflection_or_transfer": "再根据线上瓶颈逐步调整并发边界。"
+        },
+        "sample_answer": "我会先区分 CPU 密集与 I/O 密集任务，再分别选择进程池或异步协程；队列设置背压和幂等键，缓存采用容量上限与淘汰策略。关键权衡是吞吐、内存和恢复复杂度，并通过延迟分位数、吞吐、失败重放与故障注入验证。相关项目中的 Python 服务和可靠性设计可以作为实现基础。",
+        "supporting_evidence_ids": ["ev_project"]
+      }
+    ],
+    "resume_deep_dive_questions": []
+  },
+  "multimodal_professional": {
+    "jd_questions": [
+      {
+        "question": "如果要搭建一个处理图像与文本输入的多模态平台，你会如何设计数据对齐、模型服务和评估闭环，并处理数据噪声与性能约束？",
+        "question_type": "system_design",
+        "competencies_tested": ["多模态架构", "数据治理", "模型评估"],
+        "target_requirement_ids": ["req_multimodal"],
+        "answer_plan": {
+          "direct_answer": "把平台拆成数据、模型服务和评估三层。",
+          "selected_facts": ["项目包含服务设计与评估流程。"],
+          "reasoning_or_tradeoffs": "权衡统一表征、独立编码和在线延迟。",
+          "result": "通过离线指标和线上性能共同验证。",
+          "reflection_or_transfer": "逐步扩充失败样本与漂移监控。"
+        },
+        "sample_answer": "我会把系统拆成数据治理、特征与模型服务、评估监控三层。数据层校验图文配对和噪声，模型层根据延迟预算选择独立编码或融合策略，评估层同时观察任务指标、分群表现和服务性能。通过离线回放、错误类型分析和压力测试验证，并把失败样本回流到数据闭环。",
+        "supporting_evidence_ids": ["ev_project"]
+      }
+    ],
+    "resume_deep_dive_questions": []
+  },
+  "deep_dive": {
+    "jd_questions": [],
+    "resume_deep_dive_questions": [
+      {
+        "question": "在自然环境语义分割项目中，你如何确定多尺度特征融合方案，替代方案和验证标准分别是什么？",
+        "question_type": "technical_deep_dive",
+        "competencies_tested": ["模型设计", "实验验证"],
+        "target_requirement_ids": ["req_python"],
+        "experience_id": "exp_project",
+        "answer_plan": {
+          "direct_answer": "围绕边界质量和计算成本选择融合方式。",
+          "selected_facts": ["搭建实验平台", "采用 DeepLabV3+", "平均 IoU 提升 17%"],
+          "reasoning_or_tradeoffs": "权衡直接拼接、固定加权和轻量注意力。",
+          "result": "以 IoU、整体精度和收敛速度验证。",
+          "reflection_or_transfer": "后续会增加消融实验与跨场景测试。"
+        },
+        "sample_answer": "我的直接判断是先解决不同尺度信息重复与边界细节不足，再控制额外计算量。权衡上比较了直接拼接、固定权重和轻量注意力，最终选择可学习加权；验证时使用 IoU、整体精度、收敛速度和消融实验。结果达到平均 IoU 提升 17%，复盘来看还应补充跨场景稳定性测试。",
+        "supporting_evidence_ids": ["ev_project"]
+      }
+    ]
+  },
+  "duplicate_focus": {
+    "jd_questions": [],
+    "resume_deep_dive_questions": [
+      {
+        "question": "在 CareerPilot 项目中，为什么选择 FastAPI，关键权衡是什么？",
+        "question_type": "technical_deep_dive",
+        "competencies_tested": ["技术选型"],
+        "target_requirement_ids": ["req_python"],
+        "experience_id": "exp_project",
+        "answer_plan": {"direct_answer": "按接口需求选型。", "selected_facts": ["使用 Python 服务"], "reasoning_or_tradeoffs": "比较开发效率和性能。", "result": "通过接口测试验证。", "reflection_or_transfer": "继续评估瓶颈。"},
+        "sample_answer": "我根据接口类型、团队效率和性能要求选择框架，并通过接口测试与压力测试验证关键假设。",
+        "supporting_evidence_ids": ["ev_project"]
+      },
+      {
+        "question": "CareerPilot 项目选用 FastAPI 时，你比较了哪些替代方案？",
+        "question_type": "technical_deep_dive",
+        "competencies_tested": ["技术选型"],
+        "target_requirement_ids": ["req_python"],
+        "experience_id": "exp_project",
+        "answer_plan": {"direct_answer": "比较候选框架。", "selected_facts": ["使用 Python 服务"], "reasoning_or_tradeoffs": "比较开发效率和性能。", "result": "通过接口测试验证。", "reflection_or_transfer": "继续评估瓶颈。"},
+        "sample_answer": "我比较了开发效率、类型支持和部署成本，并用最小原型验证吞吐和维护复杂度。",
+        "supporting_evidence_ids": ["ev_project"]
+      }
+    ]
+  },
+  "distinct_focus": {
+    "jd_questions": [],
+    "resume_deep_dive_questions": [
+      {
+        "question": "在 CareerPilot 项目中，为什么选择 FastAPI，关键权衡是什么？",
+        "question_type": "technical_deep_dive",
+        "competencies_tested": ["技术选型"],
+        "target_requirement_ids": ["req_python"],
+        "experience_id": "exp_project",
+        "answer_plan": {"direct_answer": "按接口需求选型。", "selected_facts": ["使用 Python 服务"], "reasoning_or_tradeoffs": "比较开发效率和性能。", "result": "通过接口测试验证。", "reflection_or_transfer": "继续评估瓶颈。"},
+        "sample_answer": "我根据接口类型、团队效率和性能要求选择框架，并通过接口测试与压力测试验证关键假设。",
+        "supporting_evidence_ids": ["ev_project"]
+      },
+      {
+        "question": "CareerPilot 出现间歇性失败时，你会如何定位并设计恢复机制？",
+        "question_type": "debugging",
+        "competencies_tested": ["故障定位", "恢复设计"],
+        "target_requirement_ids": ["req_python"],
+        "experience_id": "exp_project",
+        "answer_plan": {"direct_answer": "先建立可复现路径。", "selected_facts": ["负责可靠性设计"], "reasoning_or_tradeoffs": "权衡重试和重复执行风险。", "result": "通过故障注入验证。", "reflection_or_transfer": "沉淀监控与运行手册。"},
+        "sample_answer": "我会先按请求链路补齐日志和指标以复现故障，再区分依赖超时、状态竞争和数据异常；恢复机制采用有界重试、幂等控制与降级，并通过故障注入验证恢复时间。",
+        "supporting_evidence_ids": ["ev_project"]
+      }
+    ]
+  },
+  "leaked_id": {
+    "jd_questions": [{"question": "如何设计 req_python 服务？", "question_type": "system_design", "competencies_tested": ["架构"], "target_requirement_ids": ["req_python"], "answer_plan": {"direct_answer": "分层设计。", "selected_facts": ["服务经验"], "reasoning_or_tradeoffs": "权衡性能。", "result": "测试验证。", "reflection_or_transfer": "持续优化。"}, "sample_answer": "参考 ev_project 设计服务并进行验证。", "supporting_evidence_ids": ["ev_project"]}],
+    "resume_deep_dive_questions": []
+  },
+  "unknown_evidence": {
+    "jd_questions": [{"question": "如果服务面临高并发和故障恢复约束，你会如何设计？", "question_type": "system_design", "competencies_tested": ["架构"], "target_requirement_ids": ["req_python"], "answer_plan": {"direct_answer": "分层设计。", "selected_facts": ["服务经验"], "reasoning_or_tradeoffs": "权衡性能。", "result": "测试验证。", "reflection_or_transfer": "持续优化。"}, "sample_answer": "我会定义背压、幂等与故障注入验证。", "supporting_evidence_ids": ["ev_unknown"]}],
+    "resume_deep_dive_questions": []
+  },
+  "requirement_restatement": {
+    "jd_questions": [{"question": "你如何满足岗位对 Python 与算法基础的要求？", "question_type": "technical", "competencies_tested": ["编程"], "target_requirement_ids": ["req_python"], "answer_plan": {"direct_answer": "通过项目说明。", "selected_facts": ["服务经验"], "reasoning_or_tradeoffs": "说明技术选择。", "result": "测试验证。", "reflection_or_transfer": "持续优化。"}, "sample_answer": "我会结合项目说明自己的能力和验证方法。", "supporting_evidence_ids": ["ev_project"]}],
+    "resume_deep_dive_questions": []
+  },
+  "copied_answer": {
+    "jd_questions": [{"question": "在约束明确的 AI 服务中，你会如何选择架构并验证？", "question_type": "system_design", "competencies_tested": ["架构"], "target_requirement_ids": ["req_python"], "answer_plan": {"direct_answer": "分层设计。", "selected_facts": ["模型项目"], "reasoning_or_tradeoffs": "权衡精度和成本。", "result": "指标验证。", "reflection_or_transfer": "持续优化。"}, "sample_answer": "主导搭建端到端语义分割实验平台，完成 DeepLabV3+ 本地部署，并设计轻量级通道注意力模块实现多尺度特征融合", "supporting_evidence_ids": ["ev_project"]}],
+    "resume_deep_dive_questions": []
+  }
+}

@@ -19,6 +19,7 @@ from backend.app.documents.models import ProfileChunk, ProfileDocument
 from backend.app.workflow.domain_models import (
     EvidenceSelection,
     ExperienceRecord,
+    InternalInterviewPrep,
     QualityIssue,
     InternalRiskReport,
 )
@@ -41,6 +42,7 @@ class WorkflowState(BaseModel):
     match_analysis: list[MatchItem] = Field(default_factory=list)
     match_strategy: MatchStrategy | None = None
     generated_assets: GeneratedAssets | None = None
+    internal_interview_prep: InternalInterviewPrep | None = None
     risk_report: RiskReport | None = None
     internal_risk_report: InternalRiskReport | None = None
     agent_traces: list[AgentTrace] = Field(default_factory=list)
