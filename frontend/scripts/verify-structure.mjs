@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const requiredPaths = [
@@ -118,6 +118,24 @@ if (
 
 if (page.includes("response.error?.message") || page.includes("response.error?.details")) {
   console.error("Error UI must map internal workflow errors to controlled user-facing copy.");
+  process.exit(1);
+}
+
+const uiSourceFiles = ["app", "components"].flatMap((directory) =>
+  readdirSync(join(process.cwd(), directory), { recursive: true })
+    .filter((path) => /\.(?:ts|tsx)$/.test(path))
+    .map((path) => join(process.cwd(), directory, path))
+);
+const internalUiFieldPattern =
+  /\b(?:evidence_ids?|supporting_evidence_ids?|requirement_ids?|chunk_ids?|experience_ids?|internal_supporting_evidence_ids?)\b/;
+const internalFieldReaders = uiSourceFiles.filter((path) =>
+  internalUiFieldPattern.test(readFileSync(path, "utf8"))
+);
+
+if (internalFieldReaders.length > 0) {
+  console.error(
+    `UI source must not read or render internal reference fields: ${internalFieldReaders.join(", ")}`
+  );
   process.exit(1);
 }
 

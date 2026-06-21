@@ -42,7 +42,7 @@
 - [x] `numeric-grounding.md`：按语义类型校验量化声明。
 - [x] `risk-auditor-react-agent.md`：区分简历覆盖、证据强度和 bullet 覆盖的真实 ReAct 风险分析。
 - [x] `workflow-integration.md`：三 Agent、质量重试、错误和 public gate 接入固定 workflow。
-- [ ] `regression-evaluation.md`：真实问题 fixture、自动化回归、前端检查和人工 QA。
+- [x] `regression-evaluation.md`：真实问题 fixture、自动化回归、前端检查和可重复人工 QA 评分表。
 
 ## 阶段进度
 
@@ -71,27 +71,27 @@
 - [x] PublicOutputQualityGate 接入 final response 前。
 - [x] 旧固定模板运行路径删除。
 - [x] 完整 workflow、错误处理和 cleanup 通过。
-- [ ] 回归测试和人工 QA 通过。
+- [x] 自动化回归、前端检查与构建通过；人工 QA 评分表已就绪，主观评分待评审人执行。
 
 ## 最终验收
 
-- [ ] 三个 Agent 在实际 workflow 中均产生真实 tool call。
-- [ ] 三个 Agent final output 均通过 Pydantic structured output。
-- [ ] Public response 内部 ID 泄露率为 0。
-- [ ] Unknown evidence reference rate 为 0。
-- [ ] Qualification-as-question rate 为 0。
-- [ ] Duplicate question rate 为 0。
-- [ ] 项目问题和答案不大段复制简历原文。
-- [ ] Python、CV/ML、NLP、RAG、多模态等能力能建立正确支持关系。
-- [ ] OR requirement 按任一满足分支正确判断。
-- [ ] 未进入三条 bullet 不等于简历能力缺失。
-- [ ] 日期、编号和模型版本不产生错误数字风险。
-- [ ] 三次重试失败返回受控错误且不展示半成品。
-- [ ] 后端完整测试通过。
-- [ ] 前端 `npm run check` 通过。
-- [ ] 前端 `npm run build` 通过。
+- [x] 三个 Agent 在实际 workflow 中均产生真实 tool call。
+- [x] 三个 Agent final output 均通过 Pydantic structured output。
+- [x] Public response 内部 ID 泄露率为 0。
+- [x] Unknown evidence reference rate 为 0。
+- [x] Qualification-as-question rate 为 0。
+- [x] Duplicate question rate 为 0。
+- [x] 项目问题和答案不大段复制简历原文。
+- [x] Python、CV/ML、NLP、RAG、多模态等能力能建立正确支持关系。
+- [x] OR requirement 按任一满足分支正确判断。
+- [x] 未进入三条 bullet 不等于简历能力缺失。
+- [x] 日期、编号和模型版本不产生错误数字风险。
+- [x] 三次重试失败返回受控错误且不展示半成品。
+- [x] 后端完整测试通过（285 项）。
+- [x] 前端 `npm run check` 通过。
+- [x] 前端 `npm run build` 通过。
 - [ ] 人工 QA checklist 通过并记录结果。
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md`、`resume-evidence-react-agent.md`、`resume-bullet-safety.md`、`interview-prep-react-agent.md`、`numeric-grounding.md`、`risk-auditor-react-agent.md`、`workflow-integration.md` 已完成；下一任务为 `regression-evaluation.md`，尚未开始。
+全部 14 个实现模块均已完成。自动化验收、前端结构检查与生产构建已通过；剩余动作是由产品或人工评审人按 `qa-checklist.md` 执行真实模型主观评分。
