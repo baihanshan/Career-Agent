@@ -1,219 +1,329 @@
+import json
+from pathlib import Path
+
 import pytest
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.messages import AIMessage
+from pydantic import Field
 
 from backend.app.api.schemas import (
-    CoverageGap,
     EvaluationReport,
     EvidenceItem,
     GeneratedAssets,
-    GroundingWarning,
     InterviewPrep,
     JDRequirement,
     ResumeBullet,
-    RiskItem,
-    RiskReport,
 )
+from backend.app.documents.models import ProfileDocument
 from backend.app.llm.client import LLMService
-from backend.app.workflow.nodes import (
-    WorkflowServices,
-    audit_risks,
-    finalize_response,
-    parse_inputs,
-)
+from backend.app.workflow.domain_models import EvidenceSelection, ExperienceRecord
+from backend.app.workflow.nodes import WorkflowServices, audit_risks, finalize_response
 from backend.app.workflow.risk_auditor_agent import (
     RISK_AUDITOR_AGENT_PROMPT,
     RiskAuditorAgent,
     RiskAuditorAgentError,
     create_risk_auditor_react_agent,
 )
-from backend.tests.test_workflow_nodes import _request
+from backend.app.workflow.state import AnalysisState
 
 
-def test_risk_auditor_hides_internal_requirement_and_evidence_ids():
+def test_multiple_python_projects_with_indirect_support_reject_missing_risk():
     state = _state(
-        requirements=[_requirement("req_python", "Python API development", "high")],
-        evidence=[_evidence("ev_project", "project")],
-        report=_report(
-            coverage_gaps=[
-                CoverageGap(
-                    requirement_id="req_python",
-                    requirement_text="Python API development",
-                    reason="req_python is not covered by ev_project.",
-                    severity="high",
-                )
-            ]
-        ),
-    )
-
-    next_state = RiskAuditorAgent().run(state)
-
-    rendered = " ".join(
-        str(value)
-        for risk in next_state.risk_report.risks
-        for value in risk.model_dump().values()
-    )
-    assert "req_python" not in rendered
-    assert "ev_project" not in rendered
-    assert "Python API development" in rendered
-
-
-def test_risk_auditor_treats_skill_only_match_as_uncovered():
-    state = _state(
-        requirements=[_requirement("req_python", "Python API development", "high")],
-        evidence=[_evidence("ev_skill", "skill")],
-        report=_report(),
-    )
-
-    next_state = RiskAuditorAgent().run(state)
-
-    assert next_state.risk_report.risks[0].risk_type == "JD 未覆盖"
-    assert "项目或实习" in next_state.risk_report.risks[0].resume_current_state
-
-
-def test_risk_auditor_deduplicates_repeated_generic_risks():
-    duplicate = _risk("简历表述太泛", "项目描述过于笼统", "medium", "Python API")
-
-    next_state = RiskAuditorAgent(
-        risk_generator=lambda state: RiskReport(risks=[duplicate, duplicate])
-    ).run(_state(report=_report(specificity_notes=["项目描述过于笼统"])))
-
-    assert len(next_state.risk_report.risks) == 1
-
-
-def test_risk_auditor_sorts_by_severity_then_jd_importance_and_limits_to_three():
-    risks = [
-        _risk("证据不足", "Low impact", "medium", "Optional tooling"),
-        _risk("JD 未覆盖", "High impact", "medium", "Python API"),
-        _risk("生成内容可能夸大", "Unsupported number", "high", "Metrics"),
-        _risk("简历表述太泛", "Generic wording", "low", "Communication"),
-    ]
-    state = _state(
-        requirements=[
-            _requirement("req_python", "Python API", "high"),
-            _requirement("req_optional", "Optional tooling", "low"),
+        requirements=[_requirement("req_python", "扎实的 Python 编程基础")],
+        evidence=[
+            _evidence("ev_api", "req_python", "Built a Python API."),
+            _evidence("ev_nlp", "req_python", "Built an NLP classifier in Python."),
         ],
-        report=_report(coverage_gaps=[_gap()]),
+        selections=[_selection("req_python", ["ev_api", "ev_nlp"], "strong", ["indirect"])],
     )
+    result, model = _run_invalid_missing_then_empty(state, "req_python")
 
-    next_state = RiskAuditorAgent(
-        risk_generator=lambda state: RiskReport(risks=risks[:3])
-    ).run(state)
-
-    assert [item.title for item in next_state.risk_report.risks] == [
-        "Unsupported number",
-        "High impact",
-        "Low impact",
-    ]
-    assert len(next_state.risk_report.risks) == 3
+    assert result.internal_risk_report.risks == []
+    assert _retry_contains(model, "RISK_CONTRADICTS_EVIDENCE")
 
 
-def test_risk_auditor_ranks_all_candidates_before_limiting_to_three():
-    requirements = [
-        _requirement(f"req_optional_{index}", f"Optional requirement {index}", "medium")
-        for index in range(3)
-    ]
-    gaps = [
-        CoverageGap(
-            requirement_id=requirement.requirement_id,
-            requirement_text=requirement.text,
-            reason="Requirement is not covered.",
-            severity="medium",
-        )
-        for requirement in requirements
-    ]
-    report = _report(coverage_gaps=gaps).model_copy(
+@pytest.mark.parametrize(
+    ("requirement_id", "requirement_text", "snippet"),
+    [
+        ("req_cv", "机器学习或计算机视觉经验", "DeepLabV3+ semantic segmentation project."),
+        ("req_nlp", "自然语言处理经验", "Built an NLP classifier and RAG retrieval system."),
+        ("req_multimodal", "多模态领域经验", "Evaluated image-to-text models in a multimodal team."),
+    ],
+)
+def test_domain_experience_rejects_false_missing_risk(
+    requirement_id,
+    requirement_text,
+    snippet,
+):
+    state = _state(
+        requirements=[_requirement(requirement_id, requirement_text)],
+        evidence=[_evidence("ev_domain", requirement_id, snippet)],
+        selections=[_selection(requirement_id, ["ev_domain"], "strong", ["direct"])],
+    )
+    result, _ = _run_invalid_missing_then_empty(state, requirement_id)
+
+    assert result.internal_risk_report.risks == []
+
+
+def test_or_requirement_satisfied_by_one_branch_rejects_overall_missing_risk():
+    requirement = _requirement(
+        "req_domain",
+        "掌握 NLP 或多模态至少一个领域",
+    ).model_copy(
         update={
-            "grounding_warnings": [
-                GroundingWarning(
-                    asset_type="resume_bullet",
-                    asset_id="resume_bullet:1",
-                    claim="Improved throughput by 90%.",
-                    reason="数字 90 没有出现在引用的证据中。",
-                    severity="high",
-                )
-            ]
+            "logical_operator": "OR",
+            "alternatives": ["NLP", "多模态"],
         }
     )
+    state = _state(
+        requirements=[requirement],
+        evidence=[_evidence("ev_nlp", "req_domain", "Built an NLP and RAG system.")],
+        selections=[_selection("req_domain", ["ev_nlp"], "strong", ["direct"])],
+    )
+    result, model = _run_invalid_missing_then_empty(state, "req_domain")
 
-    next_state = RiskAuditorAgent().run(
-        _state(requirements=requirements, report=report)
+    assert result.internal_risk_report.risks == []
+    assert _retry_contains(model, "RISK_CONTRADICTS_EVIDENCE")
+
+
+def test_strong_resume_evidence_not_selected_for_bullets_is_not_ability_gap():
+    state = _state(
+        requirements=[_requirement("req_python", "Python 编程能力")],
+        evidence=[_evidence("ev_python", "req_python", "Built Python services.")],
+        selections=[_selection("req_python", ["ev_python"], "strong", ["direct"])],
+        bullet_requirement_ids=["req_other"],
+    )
+    result, model = _run_invalid_missing_then_empty(state, "req_python")
+
+    assert result.internal_risk_report.risks == []
+    assert any(
+        step.tool_name == "get_resume_bullet_coverage"
+        for step in result.agent_traces[-1].steps
+    )
+    assert _retry_contains(model, "RISK_CONTRADICTS_EVIDENCE")
+
+
+def test_no_real_risk_allows_empty_list_without_manufacturing_three_items():
+    model = _fake_model([_inspection_calls("req_python"), _final({"risks": []})])
+    state = _state(
+        selections=[_selection("req_python", ["ev_project"], "strong", ["direct"])],
     )
 
-    assert next_state.risk_report.risks[0].risk_type == "生成内容可能夸大"
-    assert len(next_state.risk_report.risks) == 3
+    result = RiskAuditorAgent(model=model).run(state)
+
+    assert result.internal_risk_report.risks == []
+    assert result.risk_report.risks == []
+    assert len(model.invocations) == 2
 
 
-def test_risk_auditor_fails_after_three_invalid_attempts():
-    attempts = []
+def test_internal_evidence_ids_are_allowlisted_and_removed_from_public_risk():
+    model = _fake_model(
+        [_inspection_calls("req_python"), _final(_fixture("valid_evidence_risk"))]
+    )
+    state = _state(
+        selections=[_selection("req_python", ["ev_project"], "weak", ["insufficient"])],
+    )
 
-    def invalid_generator(state):
-        attempts.append(state.analysis_id)
-        return RiskReport()
+    result = RiskAuditorAgent(model=model).run(state)
+    response = finalize_response(result)
+    rendered = json.dumps(response.result["risk_report"], ensure_ascii=False)
 
-    with pytest.raises(RiskAuditorAgentError, match="3 attempts"):
-        RiskAuditorAgent(risk_generator=invalid_generator).run(
-            _state(report=_report(coverage_gaps=[_gap()]))
+    assert result.internal_risk_report.risks[0].internal_supporting_evidence_ids == [
+        "ev_project"
+    ]
+    assert "ev_project" not in rendered
+    assert "req_python" not in rendered
+    assert response.result["risk_report"]["risks"][0]["title"] == "工程规模证据仍不充分"
+
+
+@pytest.mark.parametrize("invalid_fixture", ["unknown_evidence", "leaked_id"])
+def test_unknown_evidence_or_visible_id_gets_feedback_retry(invalid_fixture):
+    model = _fake_model(
+        [
+            _inspection_calls("req_python"),
+            _final(_fixture(invalid_fixture)),
+            _inspection_calls("req_python"),
+            _final({"risks": []}),
+        ]
+    )
+    state = _state(
+        selections=[_selection("req_python", ["ev_project"], "strong", ["direct"])],
+    )
+
+    result = RiskAuditorAgent(model=model).run(state)
+
+    assert result.internal_risk_report.risks == []
+    retry_prompts = _retry_prompts(model)
+    assert retry_prompts
+    feedback = retry_prompts[0].split("Previous output failed validation.", 1)[1]
+    assert "ev_unknown" not in feedback
+    assert "req_python" not in feedback
+
+
+def test_three_invalid_attempts_return_controlled_error():
+    responses = []
+    for _ in range(3):
+        responses.extend(
+            [_inspection_calls("req_python"), _final(_fixture("leaked_id"))]
         )
+    model = _fake_model(responses)
 
-    assert len(attempts) == 3
+    with pytest.raises(RiskAuditorAgentError, match="3 attempts") as exc_info:
+        RiskAuditorAgent(model=model).run(_state())
+
+    assert "req_python" not in str(exc_info.value)
 
 
-def test_audit_risks_node_returns_friendly_error_after_agent_failure():
+def test_audit_risks_node_uses_runtime_react_model():
+    model = _fake_model([_inspection_calls("req_python"), _final({"risks": []})])
     services = WorkflowServices(
         retrieval_service=object(),
         llm_service=LLMService(client=_UnusedLLMClient()),
-        risk_auditor_agent=RiskAuditorAgent(
-            risk_generator=lambda state: RiskReport()
-        ),
+        react_model=model,
     )
-    failed_state = audit_risks(
-        _state(report=_report(coverage_gaps=[_gap()])),
-        services,
+    state = _state(
+        selections=[_selection("req_python", ["ev_project"], "strong", ["direct"])],
     )
 
-    response = finalize_response(failed_state)
+    response = finalize_response(audit_risks(state, services))
 
-    assert response.status == "failed"
-    assert response.error["code"] == "RISK_AUDITOR_AGENT_ERROR"
-    assert response.error["message"] == "Risk audit could not be completed safely."
-    assert set(response.error) == {"code", "message"}
+    assert response.status == "completed"
+    assert model.invocations
 
 
-def test_risk_auditor_react_agent_uses_only_allowed_tools(monkeypatch):
+def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt):
-        calls.append({"model": model, "tools": tools, "prompt": prompt})
+    def fake_create_react_agent(*, model, tools, prompt, name):
+        calls.append({"model": model, "tools": tools, "prompt": prompt, "name": name})
         return "compiled-agent"
 
     monkeypatch.setattr(
         "backend.app.workflow.risk_auditor_agent.create_react_agent",
         fake_create_react_agent,
     )
-    tools = {
-        "check_requirement_coverage": object(),
-        "find_resume_vague_claims": object(),
-        "check_generated_claim_grounding": object(),
-        "rank_top_risks": object(),
-    }
 
-    agent = create_risk_auditor_react_agent(model="model", tools=tools)
+    agent = create_risk_auditor_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
-    assert set(calls[0]["tools"]) == set(tools.values())
-    assert "project and internship" in calls[0]["prompt"].lower()
-    assert "internal requirement ids" in calls[0]["prompt"].lower()
+    assert calls[0]["tools"] == ["tool"]
+    assert calls[0]["name"] == "risk_auditor"
+    assert "resume coverage" in calls[0]["prompt"].lower()
     assert RISK_AUDITOR_AGENT_PROMPT == calls[0]["prompt"]
 
 
-def _state(requirements=None, evidence=None, report=None):
-    requirements = requirements or [_requirement("req_python", "Python API", "high")]
-    evidence = evidence or [_evidence("ev_project", "project")]
+class _ToolCallingFakeModel(FakeMessagesListChatModel):
+    invocations: list[list[object]] = Field(default_factory=list)
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.invocations.append(list(messages))
+        return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+
+def _run_invalid_missing_then_empty(state, requirement_id):
+    model = _fake_model(
+        [
+            _inspection_calls(requirement_id),
+            _final(_fixture("false_missing", requirement_id=requirement_id)),
+            _inspection_calls(requirement_id),
+            _final({"risks": []}),
+        ]
+    )
+    return RiskAuditorAgent(model=model).run(state), model
+
+
+def _inspection_calls(requirement_id):
+    return AIMessage(
+        content="",
+        tool_calls=[
+            _call("get_requirement", {"requirement_id": requirement_id}, "requirement"),
+            _call(
+                "get_requirement_evidence",
+                {"requirement_id": requirement_id},
+                "evidence",
+            ),
+            _call(
+                "compare_capability_semantics",
+                {"requirement_id": requirement_id},
+                "semantics",
+            ),
+            _call("inspect_experience", {"experience_id": "exp_project"}, "experience"),
+            _call("get_resume_bullet_coverage", {}, "bullet_coverage"),
+            _call(
+                "check_public_claim_grounding",
+                {"claim": "Candidate public claim."},
+                "grounding",
+            ),
+            _call(
+                "classify_numeric_claim",
+                {"claim": "Improved accuracy by 17%."},
+                "numeric",
+            ),
+            _call("rank_candidate_risks", {"risks": [], "limit": 3}, "ranking"),
+        ],
+    )
+
+
+def _call(name, args, call_id):
+    return {"name": name, "args": args, "id": call_id, "type": "tool_call"}
+
+
+def _fake_model(responses):
+    return _ToolCallingFakeModel(responses=responses)
+
+
+def _final(payload):
+    return AIMessage(content=json.dumps(payload, ensure_ascii=False))
+
+
+def _fixture(name, **replacements):
+    payload = json.loads(
+        (Path(__file__).parent / "fixtures" / "risk_auditor_react_calls.json").read_text(
+            encoding="utf-8"
+        )
+    )[name]
+    rendered = json.dumps(payload, ensure_ascii=False)
+    for key, value in replacements.items():
+        rendered = rendered.replace(f"{{{{{key}}}}}", value)
+    return json.loads(rendered)
+
+
+def _retry_prompts(model):
+    return [
+        message.content
+        for invocation in model.invocations
+        for message in invocation
+        if getattr(message, "type", "") == "human" and "Previous output" in message.content
+    ]
+
+
+def _retry_contains(model, code):
+    return any(code in prompt for prompt in _retry_prompts(model))
+
+
+def _state(
+    requirements=None,
+    evidence=None,
+    selections=None,
+    bullet_requirement_ids=None,
+):
+    requirements = requirements or [_requirement("req_python", "Python API engineering")]
+    evidence = evidence or [
+        _evidence("ev_project", requirements[0].requirement_id, "Built a Python API.")
+    ]
+    selections = selections or [
+        _selection(requirements[0].requirement_id, [evidence[0].evidence_id], "weak", ["insufficient"])
+    ]
+    bullet_requirement_ids = bullet_requirement_ids or [requirements[0].requirement_id]
     assets = GeneratedAssets(
-        match_summary="Evidence-backed match.",
+        match_summary="Evidence-backed match summary.",
         resume_bullets=[
             ResumeBullet(
-                text=f"Built a FastAPI service with project evidence {index}.",
-                target_requirement_ids=[requirements[0].requirement_id],
+                text=f"Built an evidence-backed service component {index}.",
+                target_requirement_ids=bullet_requirement_ids,
                 evidence_ids=[evidence[0].evidence_id],
                 risk_level="low",
             )
@@ -221,70 +331,79 @@ def _state(requirements=None, evidence=None, report=None):
         ],
         interview_prep=InterviewPrep(),
     )
-    return parse_inputs(_request()).model_copy(
-        update={
-            "jd_requirements": requirements,
-            "retrieved_evidence": evidence,
-            "generated_assets": assets,
-            "evaluation_report": report or _report(),
-        }
+    return AnalysisState(
+        analysis_id="analysis_risk",
+        profile_documents=[
+            ProfileDocument(
+                source_name="resume.pdf",
+                source_type="text",
+                content="Structured resume fixture for risk auditing.",
+            )
+        ],
+        job_description="Applied AI role",
+        jd_requirements=requirements,
+        retrieved_evidence=evidence,
+        evidence_selections=selections,
+        allowed_evidence_ids={item.evidence_id for item in evidence},
+        experience_records=[_experience()],
+        generated_assets=assets,
+        evaluation_report=EvaluationReport(
+            grounding_warnings=[],
+            coverage_gaps=[],
+            specificity_notes=[],
+            risk_summary="No deterministic grounding risk.",
+            overall_status="pass",
+        ),
     )
 
 
-def _requirement(requirement_id: str, text: str, importance: str) -> JDRequirement:
+def _requirement(requirement_id, text):
     return JDRequirement(
         requirement_id=requirement_id,
         category="hard_skill",
         text=text,
-        importance=importance,
+        importance="high",
         keywords=text.split(),
+        capability_tags=["applied_ai"],
+        verification_mode="evidence_check",
     )
 
 
-def _evidence(evidence_id: str, section_type: str) -> EvidenceItem:
+def _evidence(evidence_id, requirement_id, snippet):
     return EvidenceItem(
         evidence_id=evidence_id,
-        requirement_id="req_python",
+        requirement_id=requirement_id,
         chunk_id=f"chunk_{evidence_id}",
-        source_name="resume.md",
-        section_label=section_type.title(),
-        section_type=section_type,
-        snippet="Built a Python API for CareerPilot.",
+        source_name="resume.pdf",
+        section_type="project",
+        snippet=snippet,
         score=0.9,
     )
 
 
-def _report(coverage_gaps=None, specificity_notes=None) -> EvaluationReport:
-    return EvaluationReport(
-        grounding_warnings=[],
-        coverage_gaps=coverage_gaps or [],
-        specificity_notes=specificity_notes or [],
-        risk_summary="Review risks.",
-        overall_status="pass_with_warnings" if coverage_gaps or specificity_notes else "pass",
+def _selection(requirement_id, evidence_ids, level, support_types):
+    return EvidenceSelection(
+        requirement_id=requirement_id,
+        selected_evidence_ids=evidence_ids,
+        support_level=level,
+        support_types=support_types,
+        rationale="The evidence was semantically evaluated for this requirement.",
     )
 
 
-def _gap() -> CoverageGap:
-    return CoverageGap(
-        requirement_id="req_python",
-        requirement_text="Python API",
-        reason="High-priority requirement is uncovered.",
-        severity="high",
-    )
-
-
-def _risk(risk_type: str, title: str, severity: str, requirement: str) -> RiskItem:
-    return RiskItem(
-        risk_type=risk_type,
-        title=title,
-        jd_requirement_summary=requirement,
-        resume_current_state="Current resume evidence is incomplete.",
-        risk_reason="The claim may not convince an interviewer.",
-        recommendation="Add a concrete project example and verified outcome.",
-        severity=severity,
+def _experience():
+    return ExperienceRecord(
+        experience_id="exp_project",
+        experience_type="project",
+        name="CareerPilot",
+        responsibilities=["Built an applied AI workflow."],
+        technologies=["Python"],
+        outcomes=["Delivered a working system."],
+        raw_source_chunk_ids=["chunk_ev_project"],
+        raw_text="Built an applied AI workflow in Python.",
     )
 
 
 class _UnusedLLMClient:
     def generate(self, prompt_key, prompt, variables):
-        raise AssertionError("LLM should not be called in risk auditor tests")
+        raise AssertionError("One-shot LLMService must not generate risk audit output.")

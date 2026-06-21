@@ -8,6 +8,7 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field, model_validator
 
 from backend.app.api.schemas import ResumeSectionType
+from backend.app.evaluation.numeric_claims import extract_numeric_claims
 from backend.app.workflow.agent_tools import TraceRecorder
 from backend.app.workflow.state import WorkflowState
 
@@ -420,6 +421,17 @@ def _capability_semantics(
 ) -> StructuredToolResult:
     result = _requirement_evidence(state, requirement_id, [])
     if result.status == "success":
+        selection = next(
+            (
+                item
+                for item in state.evidence_selections
+                if item.requirement_id == requirement_id
+            ),
+            None,
+        )
+        result.data["evidence_selection"] = (
+            selection.model_dump(mode="json") if selection is not None else None
+        )
         result.trace_summary = "Returned capability tags and supporting evidence."
     return result
 
@@ -439,18 +451,15 @@ def _claim_grounding(state: WorkflowState, claim: str) -> StructuredToolResult:
 
 
 def _classify_numeric_claim(claim: str) -> StructuredToolResult:
-    lowered = claim.casefold()
-    if re.search(r"\d{4}[年./-]", claim):
-        claim_type = "date"
-    elif re.search(r"\b(?:v?\d+(?:\.\d+)+)\b", claim) or "version" in lowered:
-        claim_type = "model_or_version"
-    elif "%" in claim or any(term in lowered for term in ("accuracy", "auc", "f1", "iou")):
-        claim_type = "performance_metric"
-    else:
-        claim_type = "other"
+    claims = extract_numeric_claims(claim)
+    claim_type = claims[0].claim_type.value if claims else "other"
     return _success(
-        {"claim": claim, "claim_type": claim_type},
-        f"Classified one numeric claim as {claim_type}.",
+        {
+            "claim": claim,
+            "claim_type": claim_type,
+            "numeric_claims": [item.model_dump(mode="json") for item in claims],
+        },
+        f"Classified {len(claims)} numeric claim candidate(s).",
     )
 
 

@@ -256,7 +256,9 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
 
 def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
-        agent = services.risk_auditor_agent or RiskAuditorAgent()
+        agent = services.risk_auditor_agent or RiskAuditorAgent(
+            model=services.react_model
+        )
         return agent.run(state)
     except RiskAuditorAgentError as exc:
         _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")

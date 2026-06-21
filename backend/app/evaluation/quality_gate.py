@@ -21,17 +21,6 @@ _REQUIREMENT_RESTATEMENT_PATTERNS = (
     re.compile(r"岗位对.+要求.*(?:如何|怎么)(?:满足|符合)"),
     re.compile(r"how (?:do|would) you (?:meet|satisfy).+requirement", re.IGNORECASE),
 )
-_MISSING_RISK_MARKERS = (
-    "未覆盖",
-    "缺少",
-    "未找到",
-    "没有相关",
-    "无相关",
-    "missing",
-    "not covered",
-)
-
-
 class PublicOutputQualityGate:
     def validate_evidence_allowlist(
         self,
@@ -168,21 +157,23 @@ class PublicOutputQualityGate:
         }
         issues: list[QualityIssue] = []
         for index, risk in enumerate(report.risks):
-            risk_text = " ".join(
-                [
-                    risk.risk_type,
-                    risk.title,
-                    risk.resume_current_state,
-                    risk.risk_reason,
-                ]
-            ).casefold()
-            claims_missing = any(marker in risk_text for marker in _MISSING_RISK_MARKERS)
+            risk_type = risk.risk_type.casefold()
+            title = risk.title.casefold()
+            claims_missing = (
+                risk_type in {"resume_coverage", "jd 未覆盖", "missing_coverage"}
+                or "未覆盖" in title
+                or "能力缺失" in title
+                or "missing coverage" in title
+            )
             if not claims_missing:
                 continue
             contradicts = any(
                 (selection := selection_by_requirement.get(requirement_id)) is not None
-                and selection.support_level == "strong"
-                and SupportType.DIRECT in selection.support_types
+                and selection.support_level in {"strong", "partial"}
+                and any(
+                    support_type in selection.support_types
+                    for support_type in {SupportType.DIRECT, SupportType.INDIRECT}
+                )
                 for requirement_id in risk.requirement_ids
             )
             if contradicts:
@@ -190,7 +181,7 @@ class PublicOutputQualityGate:
                     _issue(
                         code="RISK_CONTRADICTS_EVIDENCE",
                         field_path=f"risks.{index}",
-                        message="A missing-coverage risk contradicts direct strong evidence.",
+                        message="A missing-coverage risk contradicts sufficient resume evidence.",
                         retry_instruction=(
                             "Re-evaluate full-resume evidence strength and remove or narrow the risk."
                         ),

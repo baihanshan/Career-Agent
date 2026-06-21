@@ -40,7 +40,7 @@
 - [x] `resume-bullet-safety.md`：简历要点证据约束和 public 输出安全。
 - [x] `interview-prep-react-agent.md`：专业 JD 问题、简历深挖和自然示范回答。
 - [x] `numeric-grounding.md`：按语义类型校验量化声明。
-- [ ] `risk-auditor-react-agent.md`：区分简历覆盖、证据强度和 bullet 覆盖的真实 ReAct 风险分析。
+- [x] `risk-auditor-react-agent.md`：区分简历覆盖、证据强度和 bullet 覆盖的真实 ReAct 风险分析。
 - [ ] `workflow-integration.md`：三 Agent、质量重试、错误和 public gate 接入固定 workflow。
 - [ ] `regression-evaluation.md`：真实问题 fixture、自动化回归、前端检查和人工 QA。
 
@@ -56,14 +56,14 @@
 
 - [x] 每个项目和实习形成独立 ExperienceRecord。
 - [x] JD requirement 具备 verification mode 和 interviewability。
-- [ ] 三个 Agent 使用结构化工具和安全 trace。
+- [x] 三个 Agent 使用结构化工具和安全 trace。
 
 ### Phase 3：生成与分析 Agent
 
 - [x] Resume Evidence 使用真实 LLM ReAct。
 - [x] Resume Bullet 不泄露 ID 且证据合法。
 - [x] Interview Prep 使用真实 LLM ReAct。
-- [ ] Risk Auditor 使用真实 LLM ReAct。
+- [x] Risk Auditor 使用真实 LLM ReAct。
 - [x] Numeric claim grounding 完成。
 
 ### Phase 4：集成与质量验收
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md`、`resume-evidence-react-agent.md`、`resume-bullet-safety.md`、`interview-prep-react-agent.md`、`numeric-grounding.md` 已完成；下一任务为 `risk-auditor-react-agent.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md`、`resume-evidence-react-agent.md`、`resume-bullet-safety.md`、`interview-prep-react-agent.md`、`numeric-grounding.md`、`risk-auditor-react-agent.md` 已完成；下一任务为 `workflow-integration.md`，尚未开始。

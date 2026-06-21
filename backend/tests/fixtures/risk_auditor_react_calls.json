@@ -1,0 +1,62 @@
+{
+  "false_missing": {
+    "risks": [
+      {
+        "risk_type": "resume_coverage",
+        "title": "关键能力缺少经历支撑",
+        "jd_requirement_summary": "岗位要求相关工程能力",
+        "resume_current_state": "当前简历未找到相关项目或实习。",
+        "risk_reason": "完整简历缺少能够证明该能力的证据。",
+        "recommendation": "补充真实项目中的职责、技术方案和结果。",
+        "severity": "high",
+        "requirement_ids": ["{{requirement_id}}"],
+        "internal_supporting_evidence_ids": []
+      }
+    ]
+  },
+  "valid_evidence_risk": {
+    "risks": [
+      {
+        "risk_type": "evidence_strength",
+        "title": "工程规模证据仍不充分",
+        "jd_requirement_summary": "岗位需要可验证的 Python 工程能力",
+        "resume_current_state": "已有项目实现，但没有说明负载规模和可靠性指标。",
+        "risk_reason": "现有证据能证明实现经历，尚不足以证明生产规模能力。",
+        "recommendation": "如有真实数据，可补充吞吐、延迟或故障恢复指标。",
+        "severity": "medium",
+        "requirement_ids": ["req_python"],
+        "internal_supporting_evidence_ids": ["ev_project"]
+      }
+    ]
+  },
+  "unknown_evidence": {
+    "risks": [
+      {
+        "risk_type": "evidence_strength",
+        "title": "工程证据有限",
+        "jd_requirement_summary": "岗位需要工程能力",
+        "resume_current_state": "当前证据范围有限。",
+        "risk_reason": "需要进一步验证生产规模。",
+        "recommendation": "补充可核实的工程指标。",
+        "severity": "medium",
+        "requirement_ids": ["req_python"],
+        "internal_supporting_evidence_ids": ["ev_unknown"]
+      }
+    ]
+  },
+  "leaked_id": {
+    "risks": [
+      {
+        "risk_type": "evidence_strength",
+        "title": "req_python 的工程证据有限",
+        "jd_requirement_summary": "岗位需要工程能力",
+        "resume_current_state": "参考 ev_project，当前证据范围有限。",
+        "risk_reason": "需要进一步验证生产规模。",
+        "recommendation": "补充可核实的工程指标。",
+        "severity": "medium",
+        "requirement_ids": ["req_python"],
+        "internal_supporting_evidence_ids": ["ev_project"]
+      }
+    ]
+  }
+}
