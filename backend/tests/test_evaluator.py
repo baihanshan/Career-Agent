@@ -63,6 +63,52 @@ def test_number_not_present_in_evidence_produces_high_severity_warning():
     assert "1000" in report.grounding_warnings[0].claim
 
 
+def test_dates_ordinals_and_versions_do_not_produce_numeric_grounding_warning():
+    text = (
+        "2025 年 1 月使用 Python 3 与 DeepLabV3+ 完成第 4 轮实验，"
+        "并形成可复现的模型评估流程。"
+    )
+    report = evaluate_generated_assets(
+        assets=_assets(
+            resume_bullets=[
+                ResumeBullet(
+                    text=text,
+                    target_requirement_ids=["req_python"],
+                    evidence_ids=["ev_python"],
+                    risk_level="low",
+                )
+            ]
+        ),
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+    )
+
+    assert report.grounding_warnings == []
+
+
+def test_numeric_warning_reason_contains_full_claim_context():
+    text = "在独立测试集上，模型平均 IoU 提升 17%，同时保持推理延迟稳定。"
+    report = evaluate_generated_assets(
+        assets=_assets(
+            resume_bullets=[
+                ResumeBullet(
+                    text=text,
+                    target_requirement_ids=["req_python"],
+                    evidence_ids=["ev_python"],
+                    risk_level="low",
+                )
+            ]
+        ),
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+    )
+
+    warning = report.grounding_warnings[0]
+    assert warning.claim == text
+    assert text in warning.reason
+    assert warning.reason != "数字 17 没有出现在引用的证据中。"
+
+
 def test_uncovered_high_importance_requirement_produces_coverage_gap():
     report = evaluate_generated_assets(
         assets=_assets(resume_bullets=[]),
@@ -184,6 +230,52 @@ def test_fake_llm_semantic_grounding_warnings_are_included():
 
     assert [warning.asset_id for warning in report.grounding_warnings] == ["semantic:1"]
     assert service.client.calls[0]["prompt_key"] == "evaluate_claim_grounding"
+
+
+def test_rule_and_llm_duplicate_grounding_warnings_are_deduplicated():
+    claim = "Built a model that improved accuracy by 17%."
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "evaluate_claim_grounding": json.dumps(
+                    {
+                        "grounding_warnings": [
+                            {
+                                "asset_type": "resume_bullet",
+                                "asset_id": "semantic:1",
+                                "claim": claim,
+                                "reason": "The 17% improvement is unsupported.",
+                                "severity": "high",
+                            }
+                        ],
+                        "coverage_gaps": [],
+                        "specificity_notes": [],
+                        "risk_summary": "Duplicate warning fixture.",
+                        "overall_status": "fail",
+                    }
+                )
+            }
+        )
+    )
+
+    report = evaluate_generated_assets(
+        assets=_assets(
+            resume_bullets=[
+                ResumeBullet(
+                    text=claim,
+                    target_requirement_ids=["req_python"],
+                    evidence_ids=["ev_python"],
+                    risk_level="low",
+                )
+            ]
+        ),
+        requirements=[_requirement("req_python")],
+        evidence_items=[_evidence("ev_python", "req_python")],
+        llm_service=service,
+    )
+
+    assert len(report.grounding_warnings) == 1
+    assert report.grounding_warnings[0].claim == claim
 
 
 def test_semantic_grounding_parse_failure_does_not_fail_evaluation():
