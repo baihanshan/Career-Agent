@@ -17,6 +17,7 @@ from backend.app.workflow.agent_tools import (
     build_agent_toolbox,
 )
 from backend.app.workflow.nodes import finalize_response
+from backend.app.workflow.public_output import project_public_result
 from backend.app.workflow.state import WorkflowState
 
 
@@ -93,6 +94,7 @@ def test_trace_recorder_serializes_steps_to_frontend_response():
     )
 
     state = recorder.attach_to_state(state, final_decision_summary="Use project evidence first.")
+    state = state.model_copy(update={"public_result": project_public_result(state)})
     response = finalize_response(state)
 
     assert response.result is not None

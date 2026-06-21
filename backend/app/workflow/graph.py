@@ -15,6 +15,7 @@ from backend.app.workflow.nodes import (
     generate_interview_prep,
     index_profile,
     parse_inputs,
+    public_output_gate,
     retrieve_evidence,
     score_match,
     write_application,
@@ -35,6 +36,7 @@ WORKFLOW_NODE_ORDER = [
     "resume_bullet_agent",
     "interview_prep_agent",
     "risk_auditor_agent",
+    "public_output_gate",
     "finalize_response",
 ]
 
@@ -70,6 +72,10 @@ def build_analysis_graph(services: WorkflowServices):
     graph.add_node(
         "risk_auditor_agent",
         lambda graph_state: _risk_auditor_agent_node(graph_state, services),
+    )
+    graph.add_node(
+        "public_output_gate",
+        lambda graph_state: _public_output_gate_node(graph_state, services),
     )
     graph.add_node("finalize_response", lambda graph_state: _finalize_response_node(graph_state))
 
@@ -107,6 +113,11 @@ def build_analysis_graph(services: WorkflowServices):
     )
     graph.add_conditional_edges(
         "risk_auditor_agent",
+        _error_route,
+        {"error": "finalize_response", "ok": "public_output_gate"},
+    )
+    graph.add_conditional_edges(
+        "public_output_gate",
         _error_route,
         {"error": "finalize_response", "ok": "finalize_response"},
     )
@@ -190,6 +201,13 @@ def _risk_auditor_agent_node(
 
 def _finalize_response_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:
     return {"response": finalize_response(graph_state["state"])}
+
+
+def _public_output_gate_node(
+    graph_state: AnalysisGraphState,
+    services: WorkflowServices,
+) -> AnalysisGraphState:
+    return {"state": public_output_gate(graph_state["state"], services)}
 
 
 def _error_route(graph_state: AnalysisGraphState) -> str:

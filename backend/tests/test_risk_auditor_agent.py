@@ -17,7 +17,12 @@ from backend.app.api.schemas import (
 from backend.app.documents.models import ProfileDocument
 from backend.app.llm.client import LLMService
 from backend.app.workflow.domain_models import EvidenceSelection, ExperienceRecord
-from backend.app.workflow.nodes import WorkflowServices, audit_risks, finalize_response
+from backend.app.workflow.nodes import (
+    WorkflowServices,
+    audit_risks,
+    finalize_response,
+    public_output_gate,
+)
 from backend.app.workflow.risk_auditor_agent import (
     RISK_AUDITOR_AGENT_PROMPT,
     RiskAuditorAgent,
@@ -125,7 +130,12 @@ def test_internal_evidence_ids_are_allowlisted_and_removed_from_public_risk():
     )
 
     result = RiskAuditorAgent(model=model).run(state)
-    response = finalize_response(result)
+    services = WorkflowServices(
+        retrieval_service=object(),
+        llm_service=LLMService(client=_UnusedLLMClient()),
+        risk_auditor_agent=RiskAuditorAgent(model=model),
+    )
+    response = finalize_response(public_output_gate(result, services))
     rendered = json.dumps(response.result["risk_report"], ensure_ascii=False)
 
     assert result.internal_risk_report.risks[0].internal_supporting_evidence_ids == [
@@ -185,7 +195,8 @@ def test_audit_risks_node_uses_runtime_react_model():
         selections=[_selection("req_python", ["ev_project"], "strong", ["direct"])],
     )
 
-    response = finalize_response(audit_risks(state, services))
+    audited_state = audit_risks(state, services)
+    response = finalize_response(public_output_gate(audited_state, services))
 
     assert response.status == "completed"
     assert model.invocations

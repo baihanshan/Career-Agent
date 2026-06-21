@@ -10,6 +10,7 @@ from backend.app.api.schemas import (
     JDRequirement,
     MatchStrategy,
     MatchItem,
+    PublicAnalysisResult,
     ResumeSection,
     RiskReport,
     RunConfig,
@@ -48,6 +49,7 @@ class WorkflowState(BaseModel):
     agent_traces: list[AgentTrace] = Field(default_factory=list)
     evaluation_report: EvaluationReport | None = None
     quality_issues: list[QualityIssue] = Field(default_factory=list)
+    public_result: PublicAnalysisResult | None = None
     errors: list[AppError] = Field(default_factory=list)
 
 

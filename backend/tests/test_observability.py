@@ -7,6 +7,9 @@ from backend.app.api.schemas import AnalysisRequest
 from backend.app.documents.models import ProfileDocument
 from backend.app.main import create_app
 from backend.app.workflow.graph import run_workflow
+from backend.app.workflow.nodes import WorkflowServices
+from backend.app.workflow.resume_evidence_agent import ResumeEvidenceAgentError
+from backend.app.llm.client import LLMService
 from backend.tests.test_workflow_integration import _request, _services
 
 
@@ -88,6 +91,41 @@ def test_validation_error_does_not_echo_api_key_or_internal_validation_details()
     assert set(payload["error"]) == {"code", "message"}
     assert "super-secret-api-key" not in serialized
     assert "errors" not in payload["error"]
+
+
+def test_agent_log_redacts_api_key_prompt_hidden_reasoning_and_full_resume(caplog):
+    request = _request(api_key="secret-agent-key")
+    services = _services()
+    services.resume_evidence_agent = _SensitiveFailingAgent(
+        "secret-agent-key",
+        request.profile_documents[0].content,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="backend.app.workflow.nodes"):
+        response = run_workflow(request=request, services=services)
+
+    assert response.status == "failed"
+    assert "secret-agent-key" not in caplog.text
+    assert request.profile_documents[0].content not in caplog.text
+    assert "SYSTEM_PROMPT_SECRET" not in caplog.text
+    assert "hidden chain-of-thought" not in caplog.text
+
+
+class _SensitiveFailingAgent:
+    def __init__(self, api_key, resume):
+        self.api_key = api_key
+        self.resume = resume
+
+    def run(self, state, retrieval_service):
+        raise ResumeEvidenceAgentError(
+            (
+                f"{self.api_key} SYSTEM_PROMPT_SECRET hidden chain-of-thought "
+                f"full resume: {self.resume}"
+            ),
+            failed_tool="sensitive_tool",
+            trace_summary="steps=1 tools=sensitive_tool statuses=error",
+            code="REACT_TOOL_CALL_ERROR",
+        )
 
 
 def _weak_request() -> AnalysisRequest:

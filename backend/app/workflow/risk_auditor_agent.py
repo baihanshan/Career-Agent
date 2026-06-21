@@ -142,6 +142,11 @@ class RiskAuditorAgent:
                         "Risk Auditor Agent could not produce valid structured output.",
                         failed_tool="structured_output",
                         trace_summary=_trace_summary(all_steps),
+                        code=(
+                            ReActErrorCode.REACT_TOOL_CALL_ERROR.value
+                            if any(step.status == "error" for step in all_steps)
+                            else ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value
+                        ),
                     ) from exc
                 continue
 
@@ -172,11 +177,12 @@ class RiskAuditorAgent:
 
             retry_feedback = quality_issues_to_retry_message(last_issues)
 
-        error_code = (
-            ReActErrorCode.REACT_EVIDENCE_VIOLATION.value
-            if any(issue.code == "UNKNOWN_EVIDENCE_ID" for issue in last_issues)
-            else ReActErrorCode.REACT_QUALITY_GATE_FAILED.value
-        )
+        if any(step.status == "error" for step in all_steps):
+            error_code = ReActErrorCode.REACT_TOOL_CALL_ERROR.value
+        elif any(issue.code == "UNKNOWN_EVIDENCE_ID" for issue in last_issues):
+            error_code = ReActErrorCode.REACT_EVIDENCE_VIOLATION.value
+        else:
+            error_code = ReActErrorCode.REACT_QUALITY_GATE_FAILED.value
         raise RiskAuditorAgentError(
             "Risk Auditor Agent failed deterministic quality validation after 3 attempts.",
             failed_tool="quality_gate",

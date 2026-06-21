@@ -1,21 +1,29 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from uuid import uuid4
 
-from backend.app.api.schemas import AnalysisRequest, AnalysisResponse
+from backend.app.api.schemas import (
+    AnalysisRequest,
+    AnalysisResponse,
+    PublicAnalysisResult,
+)
 from backend.app.core.errors import (
     AppError,
     DocumentProcessingErrorCode,
     LLMErrorCode,
     ProcessingWarning,
+    ReActErrorCode,
     VectorStoreErrorCode,
     WorkflowErrorCode,
 )
 from backend.app.documents.chunker import chunk_profile_document
 from backend.app.documents.experience_parser import parse_experience_records
 from backend.app.evaluation.evaluator import evaluate_generated_assets
+from backend.app.evaluation.quality_gate import PublicOutputQualityGate
 from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.service import RetrievalService
@@ -52,6 +60,26 @@ class WorkflowServices:
     resume_evidence_agent: ResumeEvidenceAgent | None = None
     interview_prep_agent: InterviewPrepAgent | None = None
     risk_auditor_agent: RiskAuditorAgent | None = None
+    quality_gate: PublicOutputQualityGate = field(
+        default_factory=PublicOutputQualityGate
+    )
+    public_projector: Callable[[AnalysisState], PublicAnalysisResult] = (
+        project_public_result
+    )
+
+    def __post_init__(self) -> None:
+        self.resume_evidence_agent = self.resume_evidence_agent or ResumeEvidenceAgent(
+            model=self.react_model
+        )
+        self.interview_prep_agent = self.interview_prep_agent or InterviewPrepAgent(
+            model=self.react_model
+        )
+        self.risk_auditor_agent = self.risk_auditor_agent or RiskAuditorAgent(
+            model=self.react_model
+        )
+        self.resume_evidence_agent.quality_gate = self.quality_gate
+        self.interview_prep_agent.quality_gate = self.quality_gate
+        self.risk_auditor_agent.quality_gate = self.quality_gate
 
 
 def parse_inputs(request: AnalysisRequest) -> AnalysisState:
@@ -127,17 +155,17 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
 
 def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
-        agent = services.resume_evidence_agent or ResumeEvidenceAgent(
-            model=services.react_model
-        )
-        return agent.run(state, services.retrieval_service)
+        return services.resume_evidence_agent.run(state, services.retrieval_service)
     except ResumeEvidenceAgentError as exc:
         _log_agent_failure(
             "resume_evidence_agent", exc, state, "search_resume_evidence"
         )
         return _append_error(
             state,
-            WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
+            _react_error_code(
+                exc,
+                WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
+            ),
             "Could not find usable resume evidence for this JD.",
             details={"reason": str(exc)},
         )
@@ -205,15 +233,15 @@ def generate_interview_prep(
     services: WorkflowServices,
 ) -> AnalysisState:
     try:
-        agent = services.interview_prep_agent or InterviewPrepAgent(
-            model=services.react_model
-        )
-        return agent.run(state)
+        return services.interview_prep_agent.run(state)
     except InterviewPrepAgentError as exc:
         _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")
         return _append_error(
             state,
-            WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
+            _react_error_code(
+                exc,
+                WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
+            ),
             "Interview preparation could not be generated safely.",
             details={"reason": str(exc)},
         )
@@ -256,15 +284,15 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
 
 def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
-        agent = services.risk_auditor_agent or RiskAuditorAgent(
-            model=services.react_model
-        )
-        return agent.run(state)
+        return services.risk_auditor_agent.run(state)
     except RiskAuditorAgentError as exc:
         _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")
         return _append_error(
             state,
-            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
+            _react_error_code(
+                exc,
+                WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
+            ),
             "Risk audit could not be completed safely.",
             details={"reason": str(exc)},
         )
@@ -278,6 +306,31 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
         )
 
 
+def public_output_gate(
+    state: AnalysisState,
+    services: WorkflowServices,
+) -> AnalysisState:
+    if state.errors:
+        return state
+    try:
+        public_result = services.public_projector(state)
+        return state.model_copy(update={"public_result": public_result})
+    except PublicOutputValidationError as exc:
+        _log_agent_failure("public_output_gate", exc, state, "public_projection")
+        return _append_error(
+            state,
+            "INTERNAL_ID_LEAK",
+            "Generated output contained an internal reference and was not displayed.",
+        )
+    except Exception as exc:
+        _log_agent_failure("public_output_gate", exc, state, "public_projection")
+        return _append_error(
+            state,
+            WorkflowErrorCode.PUBLIC_OUTPUT_GATE_ERROR.value,
+            "Generated output could not be validated for display.",
+        )
+
+
 def finalize_response(state: AnalysisState) -> AnalysisResponse:
     if state.errors:
         error = state.errors[0]
@@ -287,24 +340,20 @@ def finalize_response(state: AnalysisState) -> AnalysisResponse:
             error={"code": error.code, "message": error.message},
         )
 
-    try:
-        public_result = project_public_result(state)
-    except PublicOutputValidationError:
+    if state.public_result is None:
         return AnalysisResponse(
             analysis_id=state.analysis_id,
             status="failed",
             error={
-                "code": "INTERNAL_ID_LEAK",
-                "message": (
-                    "Generated output contained an internal reference and was not displayed."
-                ),
+                "code": WorkflowErrorCode.PUBLIC_OUTPUT_GATE_ERROR.value,
+                "message": "Generated output was not validated for display.",
             },
         )
 
     return AnalysisResponse(
         analysis_id=state.analysis_id,
         status="completed",
-        result=public_result.model_dump(mode="json"),
+        result=state.public_result.model_dump(mode="json"),
     )
 
 
@@ -351,8 +400,22 @@ def _safe_log_text(value: str, state: AnalysisState, limit: int = 480) -> str:
     sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
     if state.run_config.api_key:
         sanitized = sanitized.replace(state.run_config.api_key, "[redacted]")
+    for document in state.profile_documents:
+        if document.content:
+            sanitized = sanitized.replace(document.content, "[resume redacted]")
+    sanitized = re.sub(
+        r"(?i)hidden\s+(?:chain[- ]of[- ]thought|reasoning)",
+        "[reasoning redacted]",
+        sanitized,
+    )
     sanitized = " ".join(sanitized.split())
     return sanitized[:limit]
+
+
+def _react_error_code(exc: Exception, fallback: str) -> str:
+    code = getattr(exc, "code", None)
+    controlled_codes = {item.value for item in ReActErrorCode}
+    return code if code in controlled_codes else fallback
 
 
 def _warnings_for_document(document) -> list[ProcessingWarning]:

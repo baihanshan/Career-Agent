@@ -5,13 +5,16 @@ import os
 from typing import Any, Mapping
 from uuid import uuid4
 
-from backend.app.api.schemas import AnalysisRequest, RunConfig
+from backend.app.api.schemas import AnalysisRequest, AnalysisResponse, RunConfig
 from backend.app.llm.client import (
     LLMService,
     OpenAICompatibleChatClient,
     OpenAIResponsesClient,
 )
-from backend.app.llm.react_model import ReActModelFactory
+from backend.app.llm.react_model import (
+    ReActModelFactory,
+    ReActModelUnavailableError,
+)
 from backend.app.retrieval.embeddings import BGEEmbeddingClient, FakeEmbeddingClient
 from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import ChromaVectorStore, InMemoryVectorStore
@@ -20,7 +23,19 @@ from backend.app.workflow.nodes import WorkflowServices
 
 
 def run_analysis(request: AnalysisRequest) -> dict:
-    response = run_workflow(request=request, services=_default_services(request.run_config))
+    try:
+        services = _default_services(request.run_config)
+    except ReActModelUnavailableError:
+        response = AnalysisResponse(
+            analysis_id=f"analysis_{uuid4().hex}",
+            status="failed",
+            error={
+                "code": "REACT_MODEL_UNAVAILABLE",
+                "message": "The configured model cannot run tool-calling agents.",
+            },
+        )
+        return response.model_dump(mode="json")
+    response = run_workflow(request=request, services=services)
     return response.model_dump(mode="json")
 
 

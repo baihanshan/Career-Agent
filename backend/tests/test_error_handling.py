@@ -1,9 +1,11 @@
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api.schemas import AnalysisRequest
 from backend.app.core.errors import AppError, ProcessingWarning
+from backend.app.core.errors import ReActErrorCode
 from backend.app.documents.models import ProfileDocument
 from backend.app.llm.client import LLMService
 from backend.app.retrieval.embeddings import FakeEmbeddingClient
@@ -11,6 +13,7 @@ from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import run_workflow
 from backend.app.workflow.nodes import WorkflowServices
+from backend.app.workflow.resume_evidence_agent import ResumeEvidenceAgentError
 
 
 def test_app_error_and_processing_warning_models_are_serializable():
@@ -119,8 +122,51 @@ def test_missing_resume_evidence_returns_user_friendly_retrieval_error():
     response = run_workflow(request=request, services=_services())
 
     assert response.status == "failed"
-    assert response.error["code"] == "RESUME_EVIDENCE_AGENT_ERROR"
+    assert response.error["code"] == "REACT_QUALITY_GATE_FAILED"
     assert response.error["message"] == "Could not find usable resume evidence for this JD."
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        ReActErrorCode.REACT_TOOL_CALL_ERROR.value,
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value,
+        ReActErrorCode.REACT_QUALITY_GATE_FAILED.value,
+        ReActErrorCode.REACT_EVIDENCE_VIOLATION.value,
+    ],
+)
+def test_react_failures_preserve_stable_error_code_without_partial_result(error_code):
+    services = _services()
+    services.resume_evidence_agent = _FailingResumeEvidenceAgent(error_code)
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.status == "failed"
+    assert response.result is None
+    assert response.error["code"] == error_code
+    assert set(response.error) == {"code", "message"}
+
+
+def test_unsupported_react_model_returns_stable_error(monkeypatch):
+    from backend.app.llm.react_model import ReActModelUnavailableError
+    from backend.app.workflow import service
+
+    monkeypatch.setattr(
+        service,
+        "_default_services",
+        lambda run_config: (_ for _ in ()).throw(
+            ReActModelUnavailableError("Configured model cannot bind tools.")
+        ),
+    )
+
+    response = service.run_analysis(_request())
+
+    assert response["status"] == "failed"
+    assert response["result"] is None
+    assert response["error"] == {
+        "code": "REACT_MODEL_UNAVAILABLE",
+        "message": "The configured model cannot run tool-calling agents.",
+    }
 
 
 def _request() -> AnalysisRequest:
@@ -157,6 +203,19 @@ class _FailingRetrievalService:
 
     def retrieve_evidence(self, requirements, top_k):
         raise AssertionError("retrieve_evidence should not run after indexing failure")
+
+
+class _FailingResumeEvidenceAgent:
+    def __init__(self, code):
+        self.code = code
+
+    def run(self, state, retrieval_service):
+        raise ResumeEvidenceAgentError(
+            "Unsafe internal failure detail.",
+            failed_tool="structured_tool",
+            trace_summary="steps=1 tools=structured_tool statuses=error",
+            code=self.code,
+        )
 
 
 class _MalformedRequirementsLLMClient:

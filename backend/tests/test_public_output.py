@@ -15,8 +15,13 @@ from backend.app.api.schemas import (
     ResumeBullet,
 )
 from backend.app.documents.models import ProfileChunk, ProfileDocument
+from backend.app.llm.client import LLMService
 from backend.app.workflow.domain_models import InternalRiskItem, InternalRiskReport
-from backend.app.workflow.nodes import finalize_response
+from backend.app.workflow.nodes import (
+    WorkflowServices,
+    finalize_response,
+    public_output_gate,
+)
 from backend.app.workflow.public_output import (
     InternalIdLeakDetector,
     PublicOutputValidationError,
@@ -94,7 +99,7 @@ def test_project_public_result_rejects_leak_with_structured_quality_issue():
 def test_finalize_response_serializes_only_public_projection():
     state = _complete_state()
 
-    response = finalize_response(state)
+    response = finalize_response(public_output_gate(state, _gate_services()))
     serialized = response.model_dump(mode="json")
     result = serialized["result"]
 
@@ -127,7 +132,7 @@ def test_finalize_response_returns_controlled_failure_instead_of_polluted_text()
     state = _complete_state()
     state.generated_assets.match_summary = "Matched req_python with ev_project."
 
-    response = finalize_response(state)
+    response = finalize_response(public_output_gate(state, _gate_services()))
     serialized = json.dumps(response.model_dump(mode="json"))
 
     assert response.status == "failed"
@@ -138,6 +143,13 @@ def test_finalize_response_returns_controlled_failure_instead_of_polluted_text()
     }
     assert "req_python" not in serialized
     assert "ev_project" not in serialized
+
+
+def _gate_services():
+    return WorkflowServices(
+        retrieval_service=object(),
+        llm_service=LLMService(client=object()),
+    )
 
 
 def _complete_state():

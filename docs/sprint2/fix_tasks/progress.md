@@ -41,7 +41,7 @@
 - [x] `interview-prep-react-agent.md`：专业 JD 问题、简历深挖和自然示范回答。
 - [x] `numeric-grounding.md`：按语义类型校验量化声明。
 - [x] `risk-auditor-react-agent.md`：区分简历覆盖、证据强度和 bullet 覆盖的真实 ReAct 风险分析。
-- [ ] `workflow-integration.md`：三 Agent、质量重试、错误和 public gate 接入固定 workflow。
+- [x] `workflow-integration.md`：三 Agent、质量重试、错误和 public gate 接入固定 workflow。
 - [ ] `regression-evaluation.md`：真实问题 fixture、自动化回归、前端检查和人工 QA。
 
 ## 阶段进度
@@ -68,9 +68,9 @@
 
 ### Phase 4：集成与质量验收
 
-- [ ] PublicOutputQualityGate 接入 final response 前。
-- [ ] 旧固定模板运行路径删除。
-- [ ] 完整 workflow、错误处理和 cleanup 通过。
+- [x] PublicOutputQualityGate 接入 final response 前。
+- [x] 旧固定模板运行路径删除。
+- [x] 完整 workflow、错误处理和 cleanup 通过。
 - [ ] 回归测试和人工 QA 通过。
 
 ## 最终验收
@@ -94,4 +94,4 @@
 
 ## 当前任务
 
-`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md`、`resume-evidence-react-agent.md`、`resume-bullet-safety.md`、`interview-prep-react-agent.md`、`numeric-grounding.md`、`risk-auditor-react-agent.md` 已完成；下一任务为 `workflow-integration.md`，尚未开始。
+`react-model-runtime.md`、`domain-models.md`、`experience-structure.md`、`requirement-semantics.md`、`structured-agent-tools.md`、`public-output-boundary.md`、`quality-gates.md`、`resume-evidence-react-agent.md`、`resume-bullet-safety.md`、`interview-prep-react-agent.md`、`numeric-grounding.md`、`risk-auditor-react-agent.md`、`workflow-integration.md` 已完成；下一任务为 `regression-evaluation.md`，尚未开始。

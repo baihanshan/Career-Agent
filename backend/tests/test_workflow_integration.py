@@ -8,6 +8,7 @@ from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import WORKFLOW_NODE_ORDER, build_analysis_graph, run_workflow
 from backend.app.workflow.nodes import WorkflowServices
+from backend.app.workflow.react_tools import REACT_AGENT_TOOL_ALLOWLIST
 from backend.app.workflow.service import _default_services
 
 
@@ -21,6 +22,7 @@ def test_workflow_graph_defines_expected_node_order():
         "resume_bullet_agent",
         "interview_prep_agent",
         "risk_auditor_agent",
+        "public_output_gate",
         "finalize_response",
     ]
 
@@ -39,6 +41,36 @@ def test_sample_profile_and_jd_run_to_final_response():
         "pass_with_warnings",
         "fail",
     }
+
+
+def test_workflow_services_inject_same_react_model_into_all_three_agents():
+    model = object()
+    services = WorkflowServices(
+        retrieval_service=RetrievalService(
+            embedding_client=FakeEmbeddingClient(),
+            vector_store=InMemoryVectorStore(),
+        ),
+        llm_service=LLMService(client=_StaticLLMClient()),
+        react_model=model,
+    )
+
+    assert services.resume_evidence_agent.model is model
+    assert services.interview_prep_agent.model is model
+    assert services.risk_auditor_agent.model is model
+
+
+def test_graph_traces_contain_real_allowlisted_tool_calls_for_all_agents():
+    response = run_workflow(request=_request(), services=_services())
+
+    traces = {item["agent_name"]: item for item in response.result["agent_traces"]}
+    assert set(traces) == {"resume_evidence", "interview_prep", "risk_auditor"}
+    for agent_name, trace in traces.items():
+        assert trace["steps"]
+        assert all(
+            step["tool_name"] in REACT_AGENT_TOOL_ALLOWLIST[agent_name]
+            for step in trace["steps"]
+        )
+        assert all(step["attempt_number"] >= 1 for step in trace["steps"])
 
 
 def test_run_workflow_cleans_retrieval_collection_after_analysis():

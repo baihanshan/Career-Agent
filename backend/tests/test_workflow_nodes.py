@@ -15,6 +15,7 @@ from backend.app.workflow.nodes import (
     finalize_response,
     index_profile,
     parse_inputs,
+    public_output_gate,
     retrieve_evidence,
     score_match,
     write_application,
@@ -139,7 +140,7 @@ def test_finalize_response_outputs_completed_api_response_result():
         }
     )
 
-    response = finalize_response(state)
+    response = finalize_response(public_output_gate(state, _services()))
 
     assert response.status == "completed"
     assert response.result["jd_requirements"][0]["text"] == "Python API development"

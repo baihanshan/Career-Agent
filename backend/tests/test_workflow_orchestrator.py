@@ -25,6 +25,7 @@ def test_sprint2_workflow_uses_fixed_agent_order():
         "resume_bullet_agent",
         "interview_prep_agent",
         "risk_auditor_agent",
+        "public_output_gate",
         "finalize_response",
     ]
 
@@ -83,7 +84,7 @@ def test_resume_evidence_agent_failure_stops_workflow_logs_reason_and_cleans_col
         response = run_workflow(request=request, services=services)
 
     assert response.status == "failed"
-    assert response.error["code"] == "RESUME_EVIDENCE_AGENT_ERROR"
+    assert response.error["code"] == "REACT_QUALITY_GATE_FAILED"
     assert response.error["message"] == "Could not find usable resume evidence for this JD."
     assert "resume_evidence_agent" in caplog.text
     assert "tool=quality_gate" in caplog.text
@@ -107,6 +108,22 @@ def test_cleanup_runs_when_graph_construction_fails(monkeypatch):
         run_workflow(request=_request(), services=services)
 
     assert retrieval_service.cleaned is True
+
+
+def test_cleanup_runs_when_public_output_gate_fails():
+    services = _services()
+    cleaned = {"value": False}
+    services.retrieval_service.cleanup = lambda: cleaned.update(value=True)
+    services.public_projector = lambda state: (_ for _ in ()).throw(
+        RuntimeError("public projection failed")
+    )
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.status == "failed"
+    assert response.result is None
+    assert response.error["code"] == "PUBLIC_OUTPUT_GATE_ERROR"
+    assert cleaned["value"] is True
 
 
 class _CleanupTracker:

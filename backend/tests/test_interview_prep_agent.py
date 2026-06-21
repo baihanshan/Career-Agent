@@ -26,6 +26,7 @@ from backend.app.workflow.nodes import (
     WorkflowServices,
     finalize_response,
     generate_interview_prep,
+    public_output_gate,
 )
 from backend.app.workflow.state import AnalysisState
 
@@ -259,7 +260,8 @@ def test_generate_interview_prep_node_uses_runtime_react_model():
         experiences=[_experience()],
     )
 
-    response = finalize_response(generate_interview_prep(state, services))
+    generated_state = generate_interview_prep(state, services)
+    response = finalize_response(public_output_gate(generated_state, services))
 
     assert response.status == "completed"
     assert model.invocations
