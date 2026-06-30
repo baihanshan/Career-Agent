@@ -23,6 +23,9 @@ from backend.app.llm.structured_outputs import (
 )
 
 
+LLM_REQUEST_TIMEOUT_SECONDS = 180
+
+
 class LLMClient(Protocol):
     def generate(self, prompt_key: str, prompt: str, variables: Mapping[str, Any]) -> str:
         ...
@@ -55,7 +58,9 @@ class OpenAIResponsesClient:
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
-        self.http_client = http_client or httpx.Client(timeout=60)
+        self.http_client = http_client or httpx.Client(
+            timeout=LLM_REQUEST_TIMEOUT_SECONDS
+        )
 
     def generate(self, prompt_key: str, prompt: str, variables: Mapping[str, Any]) -> str:
         response = self.http_client.post(
@@ -97,7 +102,9 @@ class OpenAICompatibleChatClient:
         self.base_url = base_url.rstrip("/")
         self.temperature = temperature
         self.force_json_object = force_json_object
-        self.http_client = http_client or httpx.Client(timeout=60)
+        self.http_client = http_client or httpx.Client(
+            timeout=LLM_REQUEST_TIMEOUT_SECONDS
+        )
 
     def generate(self, prompt_key: str, prompt: str, variables: Mapping[str, Any]) -> str:
         request_body: dict[str, Any] = {

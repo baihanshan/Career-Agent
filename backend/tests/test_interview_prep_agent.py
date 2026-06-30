@@ -270,20 +270,38 @@ def test_generate_interview_prep_node_uses_runtime_react_model():
 def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt, name):
-        calls.append({"model": model, "tools": tools, "prompt": prompt, "name": name})
+    def fake_create_react_agent(*, model, tools, prompt, response_format, name):
+        calls.append(
+            {
+                "model": model,
+                "tools": tools,
+                "prompt": prompt,
+                "response_format": response_format,
+                "name": name,
+            }
+        )
         return "compiled-agent"
 
     monkeypatch.setattr(
         "backend.app.workflow.interview_prep_agent.create_react_agent",
         fake_create_react_agent,
     )
+    monkeypatch.setattr(
+        "backend.app.workflow.interview_prep_agent.bind_react_tools",
+        lambda model, tools: "bound-model",
+    )
+    monkeypatch.setattr(
+        "backend.app.workflow.interview_prep_agent.react_response_format",
+        lambda model, schema: schema,
+    )
 
     agent = create_interview_prep_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
+    assert calls[0]["model"] == "bound-model"
     assert calls[0]["tools"] == ["tool"]
     assert calls[0]["name"] == "interview_prep"
+    assert calls[0]["response_format"].__name__ == "InternalInterviewPrep"
     assert "professional" in calls[0]["prompt"].lower()
     assert INTERVIEW_PREP_AGENT_PROMPT == calls[0]["prompt"]
 

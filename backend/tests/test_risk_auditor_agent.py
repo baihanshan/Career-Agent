@@ -205,20 +205,38 @@ def test_audit_risks_node_uses_runtime_react_model():
 def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt, name):
-        calls.append({"model": model, "tools": tools, "prompt": prompt, "name": name})
+    def fake_create_react_agent(*, model, tools, prompt, response_format, name):
+        calls.append(
+            {
+                "model": model,
+                "tools": tools,
+                "prompt": prompt,
+                "response_format": response_format,
+                "name": name,
+            }
+        )
         return "compiled-agent"
 
     monkeypatch.setattr(
         "backend.app.workflow.risk_auditor_agent.create_react_agent",
         fake_create_react_agent,
     )
+    monkeypatch.setattr(
+        "backend.app.workflow.risk_auditor_agent.bind_react_tools",
+        lambda model, tools: "bound-model",
+    )
+    monkeypatch.setattr(
+        "backend.app.workflow.risk_auditor_agent.react_response_format",
+        lambda model, schema: schema,
+    )
 
     agent = create_risk_auditor_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
+    assert calls[0]["model"] == "bound-model"
     assert calls[0]["tools"] == ["tool"]
     assert calls[0]["name"] == "risk_auditor"
+    assert calls[0]["response_format"].__name__ == "InternalRiskReport"
     assert "resume coverage" in calls[0]["prompt"].lower()
     assert RISK_AUDITOR_AGENT_PROMPT == calls[0]["prompt"]
 

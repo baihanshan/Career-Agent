@@ -30,6 +30,7 @@ class VectorStoreErrorCode(StrEnum):
 
 class LLMErrorCode(StrEnum):
     LLM_OUTPUT_PARSE_ERROR = "LLM_OUTPUT_PARSE_ERROR"
+    LLM_PROVIDER_TIMEOUT = "LLM_PROVIDER_TIMEOUT"
 
 
 class ReActErrorCode(StrEnum):

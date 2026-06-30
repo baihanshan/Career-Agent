@@ -121,6 +121,33 @@ if (page.includes("response.error?.message") || page.includes("response.error?.d
   process.exit(1);
 }
 
+if (
+  !page.includes("LLM_PROVIDER_TIMEOUT") ||
+  !page.includes("模型响应超时，请稍后重试或更换模型。")
+) {
+  console.error("Provider timeouts must have controlled, accurate user-facing copy.");
+  process.exit(1);
+}
+
+const reactErrorMessages = [
+  ["REACT_MODEL_UNAVAILABLE", "当前模型不支持智能体工具调用，请更换模型。"],
+  ["REACT_TOOL_CALL_ERROR", "模型工具调用失败，请稍后重试或更换模型。"],
+  ["REACT_OUTPUT_PARSE_ERROR", "模型未生成有效的结构化结果，请重试或更换模型。"],
+  ["REACT_QUALITY_GATE_FAILED", "生成结果未通过质量校验，请重新分析。"],
+  ["REACT_EVIDENCE_VIOLATION", "生成结果引用了无效证据，系统已阻止展示。"],
+];
+const missingReactErrors = reactErrorMessages.filter(
+  ([code, message]) => !page.includes(code) || !page.includes(message)
+);
+if (missingReactErrors.length > 0) {
+  console.error(
+    `ReAct failures must have controlled user-facing copy: ${missingReactErrors
+      .map(([code]) => code)
+      .join(", ")}`
+  );
+  process.exit(1);
+}
+
 const uiSourceFiles = ["app", "components"].flatMap((directory) =>
   readdirSync(join(process.cwd(), directory), { recursive: true })
     .filter((path) => /\.(?:ts|tsx)$/.test(path))

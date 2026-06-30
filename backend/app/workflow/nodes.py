@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from uuid import uuid4
 
+import httpx
+
 from backend.app.api.schemas import (
     AnalysisRequest,
     AnalysisResponse,
@@ -143,6 +145,13 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
             LLMErrorCode.LLM_OUTPUT_PARSE_ERROR.value,
             "Job description could not be parsed into structured requirements.",
         )
+    except httpx.TimeoutException as exc:
+        _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
+        return _append_error(
+            state,
+            LLMErrorCode.LLM_PROVIDER_TIMEOUT.value,
+            "The model provider timed out.",
+        )
     except Exception as exc:
         _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
         return _append_error(
@@ -160,13 +169,17 @@ def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> Analy
         _log_agent_failure(
             "resume_evidence_agent", exc, state, "search_resume_evidence"
         )
+        error_code = _react_error_code(
+            exc,
+            WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
+        )
         return _append_error(
             state,
-            _react_error_code(
-                exc,
-                WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
+            error_code,
+            _react_error_message(
+                error_code,
+                "Could not find usable resume evidence for this JD.",
             ),
-            "Could not find usable resume evidence for this JD.",
             details={"reason": str(exc)},
         )
     except Exception as exc:
@@ -236,13 +249,17 @@ def generate_interview_prep(
         return services.interview_prep_agent.run(state)
     except InterviewPrepAgentError as exc:
         _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")
+        error_code = _react_error_code(
+            exc,
+            WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
+        )
         return _append_error(
             state,
-            _react_error_code(
-                exc,
-                WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
+            error_code,
+            _react_error_message(
+                error_code,
+                "Interview preparation could not be generated safely.",
             ),
-            "Interview preparation could not be generated safely.",
             details={"reason": str(exc)},
         )
     except Exception as exc:
@@ -287,13 +304,17 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
         return services.risk_auditor_agent.run(state)
     except RiskAuditorAgentError as exc:
         _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")
+        error_code = _react_error_code(
+            exc,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
+        )
         return _append_error(
             state,
-            _react_error_code(
-                exc,
-                WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
+            error_code,
+            _react_error_message(
+                error_code,
+                "Risk audit could not be completed safely.",
             ),
-            "Risk audit could not be completed safely.",
             details={"reason": str(exc)},
         )
     except Exception as exc:
@@ -416,6 +437,21 @@ def _react_error_code(exc: Exception, fallback: str) -> str:
     code = getattr(exc, "code", None)
     controlled_codes = {item.value for item in ReActErrorCode}
     return code if code in controlled_codes else fallback
+
+
+def _react_error_message(code: str, fallback: str) -> str:
+    messages = {
+        ReActErrorCode.REACT_TOOL_CALL_ERROR.value: (
+            "The model could not complete a required tool call."
+        ),
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value: (
+            "The model did not return valid structured output."
+        ),
+        ReActErrorCode.REACT_EVIDENCE_VIOLATION.value: (
+            "The model referenced evidence that was not available."
+        ),
+    }
+    return messages.get(code, fallback)
 
 
 def _warnings_for_document(document) -> list[ProcessingWarning]:

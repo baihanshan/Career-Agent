@@ -1,5 +1,7 @@
 import json
 
+import httpx
+
 from backend.app.api.schemas import AnalysisRequest, EvidenceItem, JDRequirement, RunConfig
 from backend.app.documents.models import ProfileChunk, ProfileDocument
 from backend.app.llm.client import LLMService
@@ -61,6 +63,19 @@ def test_analyze_jd_retries_llm_parser_error_once():
 
     assert [item.requirement_id for item in next_state.jd_requirements] == ["req_python"]
     assert client.call_counts["extract_jd_requirements"] == 2
+
+
+def test_analyze_jd_reports_provider_timeout_separately_from_invalid_jd():
+    state = parse_inputs(_request())
+    services = WorkflowServices(
+        retrieval_service=_retrieval_service(),
+        llm_service=LLMService(client=_TimeoutLLMClient()),
+    )
+
+    next_state = analyze_jd(state, services)
+
+    assert next_state.errors[0].code == "LLM_PROVIDER_TIMEOUT"
+    assert next_state.errors[0].message == "The model provider timed out."
 
 
 def test_retrieve_evidence_writes_evidence_table():
@@ -301,6 +316,11 @@ class _SequentialLLMClient:
         responses = self.responses[prompt_key]
         index = min(self.call_counts[prompt_key] - 1, len(responses) - 1)
         return responses[index]
+
+
+class _TimeoutLLMClient:
+    def generate(self, prompt_key, prompt, variables):
+        raise httpx.ReadTimeout("provider exceeded request timeout")
 
 
 class _FailingRetrievalService:

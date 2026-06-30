@@ -31,6 +31,12 @@ const DEFAULT_LLM_SETTINGS: LlmSettingsValue = {
 const WORKFLOW_ERROR_MESSAGES: Record<string, string> = {
   JD_ANALYST_ERROR: "岗位描述分析失败，请检查 JD 内容后重试。",
   LLM_OUTPUT_PARSE_ERROR: "岗位描述暂时无法解析，请调整内容后重试。",
+  LLM_PROVIDER_TIMEOUT: "模型响应超时，请稍后重试或更换模型。",
+  REACT_MODEL_UNAVAILABLE: "当前模型不支持智能体工具调用，请更换模型。",
+  REACT_TOOL_CALL_ERROR: "模型工具调用失败，请稍后重试或更换模型。",
+  REACT_OUTPUT_PARSE_ERROR: "模型未生成有效的结构化结果，请重试或更换模型。",
+  REACT_QUALITY_GATE_FAILED: "生成结果未通过质量校验，请重新分析。",
+  REACT_EVIDENCE_VIOLATION: "生成结果引用了无效证据，系统已阻止展示。",
   RESUME_EVIDENCE_AGENT_ERROR: "未找到足够的项目或实习经历来支撑本次分析。",
   MATCH_STRATEGIST_ERROR: "岗位匹配分析失败，请稍后重试。",
   RESUME_BULLET_AGENT_ERROR: "简历要点生成失败，请稍后重试。",

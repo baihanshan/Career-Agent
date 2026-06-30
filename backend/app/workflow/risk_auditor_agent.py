@@ -10,6 +10,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from backend.app.api.schemas import RiskItem, RiskReport
 from backend.app.core.errors import AgentExecutionError, ReActErrorCode
+from backend.app.llm.react_model import bind_react_tools, react_response_format
 from backend.app.evaluation.quality_gate import (
     PublicOutputQualityGate,
     quality_issues_to_retry_message,
@@ -142,11 +143,7 @@ class RiskAuditorAgent:
                         "Risk Auditor Agent could not produce valid structured output.",
                         failed_tool="structured_output",
                         trace_summary=_trace_summary(all_steps),
-                        code=(
-                            ReActErrorCode.REACT_TOOL_CALL_ERROR.value
-                            if any(step.status == "error" for step in all_steps)
-                            else ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value
-                        ),
+                        code=ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value,
                     ) from exc
                 continue
 
@@ -194,10 +191,12 @@ class RiskAuditorAgent:
 def create_risk_auditor_react_agent(model, tools):
     if create_react_agent is None:
         raise RuntimeError("langgraph.prebuilt.create_react_agent is unavailable.")
+    bound_model = bind_react_tools(model, tools)
     return create_react_agent(
-        model=model,
+        model=bound_model,
         tools=tools,
         prompt=RISK_AUDITOR_AGENT_PROMPT,
+        response_format=react_response_format(bound_model, InternalRiskReport),
         name="risk_auditor",
     )
 

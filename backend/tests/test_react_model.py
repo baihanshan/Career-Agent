@@ -1,12 +1,14 @@
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
+from pydantic import create_model
 
 from backend.app.api.schemas import RunConfig
 from backend.app.llm.react_model import (
     ReActModelFactory,
     ReActModelUnavailableError,
 )
+from backend.app.llm import react_model
 
 
 class _RecordingChatModel:
@@ -17,6 +19,57 @@ class _RecordingChatModel:
     def bind_tools(self, tools):
         self.bound_tools = tools
         return self
+
+
+def test_bind_react_tools_disables_parallel_calls_for_provider_models():
+    class RecordingBindingModel:
+        def __init__(self):
+            self.calls = []
+
+        def bind_tools(self, tools, **kwargs):
+            self.calls.append((tools, kwargs))
+            return "bound-model"
+
+    model = RecordingBindingModel()
+
+    result = react_model.bind_react_tools(model, ["search"])
+
+    assert result == "bound-model"
+    assert model.calls == [(["search"], {"parallel_tool_calls": False})]
+
+
+def test_bind_react_tools_supports_test_models_without_parallel_keyword():
+    class LegacyBindingModel:
+        def __init__(self):
+            self.calls = []
+
+        def bind_tools(self, tools):
+            self.calls.append(tools)
+            return "legacy-bound-model"
+
+    model = LegacyBindingModel()
+
+    result = react_model.bind_react_tools(model, ["search"])
+
+    assert result == "legacy-bound-model"
+    assert model.calls == [["search"]]
+
+
+def test_deepseek_provider_uses_json_mode_for_structured_output():
+    output_schema = create_model("DeepSeekOutput", value=(str, ...))
+    chat_model_cls = react_model._load_chat_openai("deepseek")
+    model = chat_model_cls(
+        model="deepseek-test",
+        api_key="test-key",
+        base_url="https://example.invalid",
+    )
+
+    runnable = model.with_structured_output(output_schema)
+
+    assert runnable.first.kwargs["response_format"] == {"type": "json_object"}
+    assert runnable.first.kwargs["ls_structured_output_format"]["kwargs"] == {
+        "method": "json_mode"
+    }
 
 
 @pytest.mark.parametrize(
@@ -59,6 +112,7 @@ def test_factory_builds_provider_chat_model(
     assert model.config["model"] == expected_model
     assert model.config["api_key"] == run_config.api_key
     assert model.config["temperature"] == run_config.temperature
+    assert model.config["request_timeout"] == 180
     assert model.config.get("base_url") == expected_base_url
     assert model.bound_tools == []
 

@@ -204,23 +204,65 @@ def test_unknown_evidence_id_gets_quality_feedback_and_fails_after_three_attempt
     assert "ev_made_up" not in retry_prompts[0]
 
 
+def test_invalid_final_output_is_not_misclassified_by_earlier_tool_error():
+    responses = []
+    for attempt in range(1, 4):
+        responses.extend(
+            [
+                _tool_call(
+                    "search_resume_evidence",
+                    {"query": "Python", "requirement_id": "req_unknown"},
+                    f"call_unknown_{attempt}",
+                ),
+                AIMessage(content="not valid JSON"),
+            ]
+        )
+    model = _fake_model(responses)
+    state = _state([_requirement("req_python", "Python engineering", ["programming"])])
+    service = _ScriptedRetrievalService([])
+
+    with pytest.raises(ResumeEvidenceAgentError) as exc_info:
+        ResumeEvidenceAgent(model=model, max_attempts=3).run(state, service)
+
+    assert exc_info.value.failed_tool == "structured_output"
+    assert exc_info.value.code == "REACT_OUTPUT_PARSE_ERROR"
+
+
 def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt, name):
-        calls.append({"model": model, "tools": tools, "prompt": prompt, "name": name})
+    def fake_create_react_agent(*, model, tools, prompt, response_format, name):
+        calls.append(
+            {
+                "model": model,
+                "tools": tools,
+                "prompt": prompt,
+                "response_format": response_format,
+                "name": name,
+            }
+        )
         return "compiled-agent"
 
     monkeypatch.setattr(
         "backend.app.workflow.resume_evidence_agent.create_react_agent",
         fake_create_react_agent,
     )
+    monkeypatch.setattr(
+        "backend.app.workflow.resume_evidence_agent.bind_react_tools",
+        lambda model, tools: "bound-model",
+    )
+    monkeypatch.setattr(
+        "backend.app.workflow.resume_evidence_agent.react_response_format",
+        lambda model, schema: schema,
+    )
 
     agent = create_resume_evidence_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
+    assert calls[0]["model"] == "bound-model"
     assert calls[0]["tools"] == ["tool"]
     assert calls[0]["name"] == "resume_evidence"
+    assert calls[0]["response_format"].__name__ == "_EvidenceSelectionOutput"
     assert "semantic" in calls[0]["prompt"].lower()
     assert RESUME_EVIDENCE_AGENT_PROMPT == calls[0]["prompt"]
 

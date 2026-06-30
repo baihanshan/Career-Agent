@@ -16,6 +16,29 @@ from backend.app.llm.prompts import (
 from backend.app.llm.structured_outputs import LLMOutputParseError
 
 
+@pytest.mark.parametrize(
+    "client",
+    [
+        OpenAIResponsesClient(
+            api_key="test-key",
+            model="gpt-test",
+            temperature=0.2,
+        ),
+        OpenAICompatibleChatClient(
+            api_key="test-key",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com",
+            temperature=0.2,
+        ),
+    ],
+)
+def test_default_llm_clients_allow_slow_provider_responses(client):
+    try:
+        assert client.http_client.timeout.read == 180
+    finally:
+        client.http_client.close()
+
+
 def test_fake_client_extracts_sample_jd_requirements():
     service = LLMService(
         client=FakeLLMClient(

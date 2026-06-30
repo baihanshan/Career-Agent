@@ -147,6 +147,20 @@ def test_react_failures_preserve_stable_error_code_without_partial_result(error_
     assert set(response.error) == {"code", "message"}
 
 
+def test_react_output_parse_failure_reports_the_actual_failure_stage():
+    services = _services()
+    services.resume_evidence_agent = _FailingResumeEvidenceAgent(
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value
+    )
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.error == {
+        "code": "REACT_OUTPUT_PARSE_ERROR",
+        "message": "The model did not return valid structured output.",
+    }
+
+
 def test_unsupported_react_model_returns_stable_error(monkeypatch):
     from backend.app.llm.react_model import ReActModelUnavailableError
     from backend.app.workflow import service
