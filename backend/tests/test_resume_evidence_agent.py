@@ -1,12 +1,15 @@
 import json
+import logging
 from pathlib import Path
 
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
+from langgraph.errors import GraphRecursionError
 from pydantic import Field
 
 from backend.app.api.schemas import EvidenceItem, JDRequirement
+from backend.app.core.errors import ReActErrorCode
 from backend.app.documents.models import ProfileDocument
 from backend.app.workflow.domain_models import ExperienceRecord, SupportType
 from backend.app.workflow.resume_evidence_agent import (
@@ -228,15 +231,115 @@ def test_invalid_final_output_is_not_misclassified_by_earlier_tool_error():
     assert exc_info.value.code == "REACT_OUTPUT_PARSE_ERROR"
 
 
-def test_factory_uses_langgraph_create_react_agent(monkeypatch):
+def test_invalid_final_output_logs_sanitized_model_content(caplog):
+    responses = [
+        _tool_call(
+            "search_resume_evidence",
+            {"query": "Python", "requirement_id": "req_python"},
+            "call_search_python",
+        ),
+        AIMessage(
+            content=(
+                "I found evidence in Structured resume fixture with project and "
+                "internship evidence. But here is prose instead of JSON."
+            )
+        ),
+    ]
+    model = _fake_model(responses)
+    state = _state([_requirement("req_python", "Python engineering", ["programming"])])
+    service = _ScriptedRetrievalService(
+        [[_evidence("ev_real", "req_python", "project", "Built a Python API")]]
+    )
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="backend.app.workflow.resume_evidence_agent",
+    ):
+        with pytest.raises(ResumeEvidenceAgentError):
+            ResumeEvidenceAgent(model=model, max_attempts=1).run(state, service)
+
+    log_text = caplog.text
+    assert "event=resume_evidence_structured_output_parse_failed" in log_text
+    assert "exception=JSONDecodeError" in log_text
+    assert "final_ai_message=" in log_text
+    assert "[resume redacted]" in log_text
+    assert "Structured resume fixture with project and internship evidence" not in log_text
+
+
+def test_recursion_limit_scales_with_requirement_count(monkeypatch):
+    captured_configs = []
+
+    class RecordingAgent:
+        def invoke(self, payload, config):
+            captured_configs.append(config)
+            return {
+                "messages": [
+                    _final(
+                        [
+                            _selection(
+                                f"req_{index}",
+                                ["ev_shared"],
+                                "partial",
+                                ["contextual"],
+                            )
+                            for index in range(1, 7)
+                        ]
+                    )
+                ]
+            }
+
+    monkeypatch.setattr(
+        "backend.app.workflow.resume_evidence_agent.create_resume_evidence_react_agent",
+        lambda model, tools: RecordingAgent(),
+    )
+    requirements = [
+        _requirement(f"req_{index}", f"Requirement {index}", ["programming"])
+        for index in range(1, 7)
+    ]
+    state = _state(requirements).model_copy(
+        update={
+            "allowed_evidence_ids": {"ev_shared"},
+            "retrieved_evidence": [
+                _evidence("ev_shared", "req_1", "project", "Built a Python API")
+            ],
+        }
+    )
+
+    ResumeEvidenceAgent(model=object()).run(state, _ScriptedRetrievalService([]))
+
+    assert captured_configs == [{"recursion_limit": 36}]
+
+
+def test_graph_recursion_error_is_classified_separately(monkeypatch):
+    class RecursingAgent:
+        def invoke(self, payload, config):
+            raise GraphRecursionError("Recursion limit reached")
+
+    monkeypatch.setattr(
+        "backend.app.workflow.resume_evidence_agent.create_resume_evidence_react_agent",
+        lambda model, tools: RecursingAgent(),
+    )
+    state = _state([_requirement("req_python", "Python engineering", ["programming"])])
+
+    with pytest.raises(ResumeEvidenceAgentError) as exc_info:
+        ResumeEvidenceAgent(model=object(), max_attempts=1).run(
+            state,
+            _ScriptedRetrievalService([]),
+        )
+
+    assert exc_info.value.failed_tool == "recursion_limit"
+    assert exc_info.value.code == ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value
+
+
+def test_factory_uses_langchain_create_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt, response_format, name):
+    def fake_create_agent(*, model, tools, system_prompt, response_format, name):
         calls.append(
             {
                 "model": model,
                 "tools": tools,
-                "prompt": prompt,
+                "system_prompt": system_prompt,
                 "response_format": response_format,
                 "name": name,
             }
@@ -244,12 +347,8 @@ def test_factory_uses_langgraph_create_react_agent(monkeypatch):
         return "compiled-agent"
 
     monkeypatch.setattr(
-        "backend.app.workflow.resume_evidence_agent.create_react_agent",
-        fake_create_react_agent,
-    )
-    monkeypatch.setattr(
-        "backend.app.workflow.resume_evidence_agent.bind_react_tools",
-        lambda model, tools: "bound-model",
+        "backend.app.workflow.resume_evidence_agent.create_agent",
+        fake_create_agent,
     )
     monkeypatch.setattr(
         "backend.app.workflow.resume_evidence_agent.react_response_format",
@@ -259,12 +358,17 @@ def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     agent = create_resume_evidence_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
-    assert calls[0]["model"] == "bound-model"
+    assert calls[0]["model"] == "model"
     assert calls[0]["tools"] == ["tool"]
     assert calls[0]["name"] == "resume_evidence"
     assert calls[0]["response_format"].__name__ == "_EvidenceSelectionOutput"
-    assert "semantic" in calls[0]["prompt"].lower()
-    assert RESUME_EVIDENCE_AGENT_PROMPT == calls[0]["prompt"]
+    assert "semantic" in calls[0]["system_prompt"].lower()
+    assert RESUME_EVIDENCE_AGENT_PROMPT == calls[0]["system_prompt"]
+
+
+def test_prompt_contains_explicit_json_example_for_json_mode_providers():
+    assert "json example" in RESUME_EVIDENCE_AGENT_PROMPT.lower()
+    assert '"selections"' in RESUME_EVIDENCE_AGENT_PROMPT
 
 
 class _ToolCallingFakeModel(FakeMessagesListChatModel):

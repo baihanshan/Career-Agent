@@ -130,6 +130,7 @@ def test_missing_resume_evidence_returns_user_friendly_retrieval_error():
     "error_code",
     [
         ReActErrorCode.REACT_TOOL_CALL_ERROR.value,
+        ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value,
         ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value,
         ReActErrorCode.REACT_QUALITY_GATE_FAILED.value,
         ReActErrorCode.REACT_EVIDENCE_VIOLATION.value,
@@ -158,6 +159,20 @@ def test_react_output_parse_failure_reports_the_actual_failure_stage():
     assert response.error == {
         "code": "REACT_OUTPUT_PARSE_ERROR",
         "message": "The model did not return valid structured output.",
+    }
+
+
+def test_react_recursion_limit_failure_reports_the_actual_failure_stage():
+    services = _services()
+    services.resume_evidence_agent = _FailingResumeEvidenceAgent(
+        ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value
+    )
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.error == {
+        "code": "REACT_RECURSION_LIMIT_ERROR",
+        "message": "The model used too many evidence-search steps before producing a final answer.",
     }
 
 

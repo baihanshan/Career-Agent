@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -10,7 +9,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from backend.app.api.schemas import RiskItem, RiskReport
 from backend.app.core.errors import AgentExecutionError, ReActErrorCode
-from backend.app.llm.react_model import bind_react_tools, react_response_format
+from backend.app.llm.react_model import react_response_format
 from backend.app.evaluation.quality_gate import (
     PublicOutputQualityGate,
     quality_issues_to_retry_message,
@@ -21,14 +20,15 @@ from backend.app.workflow.domain_models import (
     InternalRiskReport,
     QualityIssue,
 )
+from backend.app.workflow.json_outputs import parse_json_payload_from_text
 from backend.app.workflow.public_output import InternalIdLeakDetector
 from backend.app.workflow.react_tools import build_structured_react_tools
 from backend.app.workflow.state import AnalysisState
 
 try:
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 except ImportError:  # pragma: no cover - dependency is present in normal installs
-    create_react_agent = None
+    create_agent = None
 
 
 RISK_AUDITOR_AGENT_PROMPT = """
@@ -54,6 +54,8 @@ Return only JSON with a top-level risks list. Each risk contains risk_type, titl
 jd_requirement_summary, resume_current_state, risk_reason, recommendation, severity,
 requirement_ids, and internal_supporting_evidence_ids. Do not return markdown or hidden
 reasoning.
+JSON example:
+{"risks":[{"risk_type":"证据不足","title":"核心要求缺少足够项目细节","jd_requirement_summary":"JD asks for applied machine learning experience.","resume_current_state":"The resume mentions related work but lacks method and evaluation details.","risk_reason":"The current evidence is relevant but not strong enough to prove the requirement.","recommendation":"Add model choice, dataset, evaluation metric, and your personal contribution.","severity":"medium","requirement_ids":["req_example"],"internal_supporting_evidence_ids":["ev_example"]}]}
 """.strip()
 
 
@@ -189,14 +191,13 @@ class RiskAuditorAgent:
 
 
 def create_risk_auditor_react_agent(model, tools):
-    if create_react_agent is None:
-        raise RuntimeError("langgraph.prebuilt.create_react_agent is unavailable.")
-    bound_model = bind_react_tools(model, tools)
-    return create_react_agent(
-        model=bound_model,
+    if create_agent is None:
+        raise RuntimeError("langchain.agents.create_agent is unavailable.")
+    return create_agent(
+        model=model,
         tools=tools,
-        prompt=RISK_AUDITOR_AGENT_PROMPT,
-        response_format=react_response_format(bound_model, InternalRiskReport),
+        system_prompt=RISK_AUDITOR_AGENT_PROMPT,
+        response_format=react_response_format(model, InternalRiskReport),
         name="risk_auditor",
     )
 
@@ -255,8 +256,7 @@ def _parse_final_report(result: dict[str, Any]) -> InternalRiskReport:
     )
     if not isinstance(content, str):
         raise ValueError("Final Agent message must contain JSON text.")
-    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL | re.IGNORECASE)
-    payload = json.loads(fenced.group(1) if fenced else content)
+    payload = parse_json_payload_from_text(content)
     return InternalRiskReport.model_validate(payload)
 
 

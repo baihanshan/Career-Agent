@@ -7,6 +7,7 @@ from backend.app.api.schemas import RunConfig
 from backend.app.llm.react_model import (
     ReActModelFactory,
     ReActModelUnavailableError,
+    react_response_format,
 )
 from backend.app.llm import react_model
 
@@ -70,6 +71,30 @@ def test_deepseek_provider_uses_json_mode_for_structured_output():
     assert runnable.first.kwargs["ls_structured_output_format"]["kwargs"] == {
         "method": "json_mode"
     }
+
+
+def test_react_response_format_uses_schema_only_for_openai_provider_models():
+    output_schema = create_model("ProviderStructuredOutput", value=(str, ...))
+    openai_model = ReActModelFactory().create(
+        RunConfig(provider="openai", model="gpt-test", api_key="openai-key")
+    )
+    deepseek_model = ReActModelFactory().create(
+        RunConfig(provider="deepseek", model="deepseek-test", api_key="deepseek-key")
+    )
+    compatible_model = ReActModelFactory().create(
+        RunConfig(
+            provider="openai_compatible",
+            model="compatible-test",
+            api_key="compatible-key",
+            base_url="https://example.invalid/v1",
+        )
+    )
+    fake_model = FakeMessagesListChatModel(responses=[AIMessage(content="{}")])
+
+    assert react_response_format(openai_model, output_schema) is output_schema
+    assert react_response_format(deepseek_model, output_schema) is None
+    assert react_response_format(compatible_model, output_schema) is None
+    assert react_response_format(fake_model, output_schema) is None
 
 
 @pytest.mark.parametrize(

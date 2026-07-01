@@ -1,0 +1,35 @@
+INFO:     Will watch for changes in these directories: ['/Users/baihanshan/Desktop/Career Agent']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [24449] using WatchFiles
+INFO:     Started server process [24490]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:57438 - "POST /documents/parse-pdf HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57438 - "OPTIONS /analysis HTTP/1.1" 200 OK
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 67555.32it/s]
+INFO:     127.0.0.1:57438 - "POST /analysis HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'backend/app/llm/prompts.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [24490]
+INFO:     Started server process [30138]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'backend/app/workflow/interview_prep_agent.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30138]
+INFO:     Started server process [30304]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'backend/app/workflow/writer.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [30304]
+INFO:     Started server process [30425]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

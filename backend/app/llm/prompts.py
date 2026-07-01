@@ -34,6 +34,9 @@ Low importance means optional, preferred, bonus, nice-to-have, or weakly emphasi
 APPLICATION_GENERATION_PROMPT = """
 Generate evidence-only, evidence-grounded application assets from requirements, evidence, and match analysis.
 Every user-experience claim must cite evidence_ids.
+All user-visible natural-language fields must be written in Simplified Chinese, including
+match_summary and every resume_bullets[].text value. Keep JSON keys, enum values, and
+internal IDs in their existing English schema form.
 Evidence IDs and requirement IDs are internal JSON metadata only. Put them only in the
 target_requirement_ids, evidence_ids, or supporting_evidence_ids fields. Never append,
 quote, explain, or display IDs inside match_summary, resume bullet text, questions, or answers.

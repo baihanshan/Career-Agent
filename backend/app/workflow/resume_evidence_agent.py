@@ -1,29 +1,35 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, Field
 
 from backend.app.core.errors import AgentExecutionError, ReActErrorCode
-from backend.app.llm.react_model import bind_react_tools, react_response_format
+from backend.app.llm.react_model import react_response_format
 from backend.app.evaluation.quality_gate import (
     PublicOutputQualityGate,
     quality_issues_to_retry_message,
 )
 from backend.app.workflow.agent_tools import MAX_REACT_AGENT_STEPS, TraceRecorder
 from backend.app.workflow.domain_models import EvidenceSelection, QualityIssue
+from backend.app.workflow.json_outputs import parse_json_payload_from_text
 from backend.app.workflow.react_tools import build_structured_react_tools
 from backend.app.workflow.state import AnalysisState
 
 try:
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 except ImportError:  # pragma: no cover - dependency is present in normal installs
-    create_react_agent = None
+    create_agent = None
+
+
+logger = logging.getLogger(__name__)
 
 
 RESUME_EVIDENCE_AGENT_PROMPT = """
@@ -36,9 +42,13 @@ rerank_evidence as appropriate. Do not conclude support from section type or sco
 Multiple projects may jointly provide indirect support for a foundational capability.
 An internship whose actual work matches the requested domain may provide direct support.
 Use only evidence IDs returned by tools in the current invocation. Never invent IDs.
+For each requirement, stop calling tools once you have enough evidence to decide
+strong, partial, or missing support. Do not keep searching for perfect evidence.
 Return only JSON with a top-level "selections" list matching EvidenceSelection fields:
 requirement_id, selected_evidence_ids, support_level, support_types, rationale,
 and uncovered_aspects. Do not include hidden reasoning or markdown fences.
+JSON example:
+{"selections":[{"requirement_id":"req_example","selected_evidence_ids":["ev_example"],"support_level":"strong","support_types":["direct"],"rationale":"The evidence directly supports the requirement.","uncovered_aspects":[]}]}
 """.strip()
 
 
@@ -94,6 +104,7 @@ class ResumeEvidenceAgent:
                 retrieval_service=retrieval_service,
             )
             agent = create_resume_evidence_react_agent(self.model, tools)
+            result: dict[str, Any] | None = None
             try:
                 result = agent.invoke(
                     {
@@ -104,10 +115,45 @@ class ResumeEvidenceAgent:
                             }
                         ]
                     },
-                    config={"recursion_limit": self.max_steps * 2 + 4},
+                    config={
+                        "recursion_limit": _recursion_limit(
+                            self.max_steps,
+                            len(tool_state.jd_requirements),
+                        )
+                    },
                 )
                 selections = _parse_final_selections(result)
+            except GraphRecursionError as exc:
+                _log_structured_output_parse_failure(
+                    exc,
+                    result,
+                    tool_state,
+                    attempt_number,
+                )
+                all_steps.extend(recorder.steps)
+                last_issues = [
+                    _quality_issue(
+                        "REACT_RECURSION_LIMIT_ERROR",
+                        "evidence_selections",
+                        "Stop calling tools and return final JSON using evidence already returned.",
+                    )
+                ]
+                retry_feedback = quality_issues_to_retry_message(last_issues)
+                if attempt_number == self.max_attempts:
+                    raise ResumeEvidenceAgentError(
+                        "Resume Evidence Agent exceeded the tool recursion limit before producing final output.",
+                        failed_tool="recursion_limit",
+                        trace_summary=_trace_summary(all_steps),
+                        code=ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value,
+                    ) from exc
+                continue
             except Exception as exc:
+                _log_structured_output_parse_failure(
+                    exc,
+                    result,
+                    tool_state,
+                    attempt_number,
+                )
                 all_steps.extend(recorder.steps)
                 last_issues = [
                     _quality_issue(
@@ -175,14 +221,13 @@ class ResumeEvidenceAgent:
 
 
 def create_resume_evidence_react_agent(model, tools):
-    if create_react_agent is None:
-        raise RuntimeError("langgraph.prebuilt.create_react_agent is unavailable.")
-    bound_model = bind_react_tools(model, tools)
-    return create_react_agent(
-        model=bound_model,
+    if create_agent is None:
+        raise RuntimeError("langchain.agents.create_agent is unavailable.")
+    return create_agent(
+        model=model,
         tools=tools,
-        prompt=RESUME_EVIDENCE_AGENT_PROMPT,
-        response_format=react_response_format(bound_model, _EvidenceSelectionOutput),
+        system_prompt=RESUME_EVIDENCE_AGENT_PROMPT,
+        response_format=react_response_format(model, _EvidenceSelectionOutput),
         name="resume_evidence",
     )
 
@@ -196,6 +241,10 @@ def _invocation_prompt(state: AnalysisState, retry_feedback: str) -> str:
     if retry_feedback:
         prompt += "\n\nPrevious output failed validation.\n" + retry_feedback
     return prompt
+
+
+def _recursion_limit(max_steps: int, requirement_count: int) -> int:
+    return max(max_steps * 2 + 4, requirement_count * 4 + 12, 30)
 
 
 def _parse_final_selections(result: dict[str, Any]) -> list[EvidenceSelection]:
@@ -214,11 +263,64 @@ def _parse_final_selections(result: dict[str, Any]) -> list[EvidenceSelection]:
     )
     if not isinstance(content, str):
         raise ValueError("Final Agent message must contain JSON text.")
-    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL | re.IGNORECASE)
-    payload = json.loads(fenced.group(1) if fenced else content)
+    payload = parse_json_payload_from_text(content)
     if isinstance(payload, list):
         payload = {"selections": payload}
     return _EvidenceSelectionOutput.model_validate(payload).selections
+
+
+def _log_structured_output_parse_failure(
+    exc: Exception,
+    result: dict[str, Any] | None,
+    state: AnalysisState,
+    attempt_number: int,
+) -> None:
+    logger.warning(
+        "event=resume_evidence_structured_output_parse_failed "
+        "attempt=%s exception=%s reason=%s final_ai_message=%s",
+        attempt_number,
+        exc.__class__.__name__,
+        _safe_debug_text(str(exc), state),
+        _safe_debug_text(_extract_final_ai_content(result), state, limit=1000),
+    )
+
+
+def _extract_final_ai_content(result: dict[str, Any] | None) -> str:
+    if not result:
+        return "[no agent result]"
+    messages = result.get("messages") or []
+    for message in reversed(messages):
+        if getattr(message, "type", "") != "ai":
+            continue
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            return content or "[empty ai message]"
+        try:
+            return json.dumps(content, ensure_ascii=False)
+        except TypeError:
+            return str(content)
+    return "[no ai message]"
+
+
+def _safe_debug_text(
+    value: str,
+    state: AnalysisState,
+    *,
+    limit: int = 480,
+) -> str:
+    sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    if state.run_config.api_key:
+        sanitized = sanitized.replace(state.run_config.api_key, "[redacted]")
+    for document in state.profile_documents:
+        if document.content:
+            sanitized = sanitized.replace(document.content, "[resume redacted]")
+    sanitized = re.sub(
+        r"(?i)hidden\s+(?:chain[- ]of[- ]thought|reasoning)",
+        "[reasoning redacted]",
+        sanitized,
+    )
+    sanitized = " ".join(sanitized.split())
+    return sanitized[:limit]
 
 
 def _validate_selections(

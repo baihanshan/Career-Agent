@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from langchain_core.runnables import RunnableBinding
-
 from backend.app.api.schemas import RunConfig
 from backend.app.llm.client import LLM_REQUEST_TIMEOUT_SECONDS
 
@@ -27,8 +25,11 @@ def bind_react_tools(model: Any, tools: list[Any]) -> Any:
 
 
 def react_response_format(model: Any, schema: type[Any]) -> type[Any] | None:
-    """Use provider structured output only for a genuinely bound provider model."""
-    return schema if isinstance(model, RunnableBinding) else None
+    """Use provider structured output only where the provider supports it reliably."""
+    provider = getattr(model, "_career_agent_provider", None)
+    if provider == "openai":
+        return schema
+    return None
 
 
 class ReActModelFactory:
@@ -74,6 +75,10 @@ class ReActModelFactory:
             raise ReActModelUnavailableError(
                 "The configured ReAct ChatModel could not be created."
             ) from exc
+        try:
+            setattr(model, "_career_agent_provider", run_config.provider)
+        except Exception:
+            pass
 
         bind_tools = getattr(model, "bind_tools", None)
         if not callable(bind_tools):

@@ -444,6 +444,9 @@ def _react_error_message(code: str, fallback: str) -> str:
         ReActErrorCode.REACT_TOOL_CALL_ERROR.value: (
             "The model could not complete a required tool call."
         ),
+        ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value: (
+            "The model used too many evidence-search steps before producing a final answer."
+        ),
         ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value: (
             "The model did not return valid structured output."
         ),

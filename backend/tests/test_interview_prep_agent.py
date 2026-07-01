@@ -197,7 +197,7 @@ def test_answer_keeps_structured_plan_and_reorganizes_supported_facts():
 
 @pytest.mark.parametrize(
     "invalid_fixture",
-    ["leaked_id", "unknown_evidence", "requirement_restatement", "copied_answer"],
+    ["leaked_id", "requirement_restatement", "copied_answer"],
 )
 def test_invalid_output_gets_quality_feedback_and_regenerates(invalid_fixture):
     model = _fake_model(
@@ -226,6 +226,45 @@ def test_invalid_output_gets_quality_feedback_and_regenerates(invalid_fixture):
     ]
     assert retry_prompts
     assert "ev_unknown" not in retry_prompts[0]
+
+
+def test_prefixed_json_final_output_is_parsed_without_retry():
+    output = _fixture("python_professional")
+    model = _fake_model(
+        [
+            _tool_calls(),
+            AIMessage(
+                content=(
+                    "Now I have enough evidence. Here is the final JSON: "
+                    + json.dumps(output, ensure_ascii=False)
+                )
+            ),
+        ]
+    )
+    state = _state(
+        requirements=[_requirement("req_python", "Python 与算法基础")],
+        evidence=[_evidence("ev_project", "req_python")],
+        experiences=[_experience()],
+    )
+
+    result = InterviewPrepAgent(model=model, max_attempts=1).run(state)
+
+    assert result.generated_assets.interview_prep.jd_questions
+    assert len(model.invocations) == 2
+
+
+def test_unknown_supporting_evidence_ids_are_normalized_from_target_requirement():
+    model = _fake_model([_tool_calls(), _final(_fixture("unknown_evidence"))])
+    state = _state(
+        requirements=[_requirement("req_python", "Python 与算法基础")],
+        evidence=[_evidence("ev_project", "req_python")],
+        experiences=[_experience()],
+    )
+
+    result = InterviewPrepAgent(model=model, max_attempts=1).run(state)
+
+    question = result.internal_interview_prep.jd_questions[0]
+    assert question.supporting_evidence_ids == ["ev_project"]
 
 
 def test_three_invalid_attempts_return_controlled_error():
@@ -267,15 +306,15 @@ def test_generate_interview_prep_node_uses_runtime_react_model():
     assert model.invocations
 
 
-def test_factory_uses_langgraph_create_react_agent(monkeypatch):
+def test_factory_uses_langchain_create_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt, response_format, name):
+    def fake_create_agent(*, model, tools, system_prompt, response_format, name):
         calls.append(
             {
                 "model": model,
                 "tools": tools,
-                "prompt": prompt,
+                "system_prompt": system_prompt,
                 "response_format": response_format,
                 "name": name,
             }
@@ -283,12 +322,8 @@ def test_factory_uses_langgraph_create_react_agent(monkeypatch):
         return "compiled-agent"
 
     monkeypatch.setattr(
-        "backend.app.workflow.interview_prep_agent.create_react_agent",
-        fake_create_react_agent,
-    )
-    monkeypatch.setattr(
-        "backend.app.workflow.interview_prep_agent.bind_react_tools",
-        lambda model, tools: "bound-model",
+        "backend.app.workflow.interview_prep_agent.create_agent",
+        fake_create_agent,
     )
     monkeypatch.setattr(
         "backend.app.workflow.interview_prep_agent.react_response_format",
@@ -298,12 +333,18 @@ def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     agent = create_interview_prep_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
-    assert calls[0]["model"] == "bound-model"
+    assert calls[0]["model"] == "model"
     assert calls[0]["tools"] == ["tool"]
     assert calls[0]["name"] == "interview_prep"
     assert calls[0]["response_format"].__name__ == "InternalInterviewPrep"
-    assert "professional" in calls[0]["prompt"].lower()
-    assert INTERVIEW_PREP_AGENT_PROMPT == calls[0]["prompt"]
+    assert "professional" in calls[0]["system_prompt"].lower()
+    assert INTERVIEW_PREP_AGENT_PROMPT == calls[0]["system_prompt"]
+
+
+def test_prompt_contains_explicit_json_example_for_json_mode_providers():
+    assert "json example" in INTERVIEW_PREP_AGENT_PROMPT.lower()
+    assert '"jd_questions"' in INTERVIEW_PREP_AGENT_PROMPT
+    assert '"resume_deep_dive_questions"' in INTERVIEW_PREP_AGENT_PROMPT
 
 
 class _ToolCallingFakeModel(FakeMessagesListChatModel):

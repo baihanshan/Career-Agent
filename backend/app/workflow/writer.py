@@ -58,6 +58,8 @@ def build_writer_context(
         ],
         "generation_rules": [
             "Use evidence-only claims for user experience.",
+            "Write all user-visible natural-language output in Simplified Chinese.",
+            "Keep JSON keys, enum values, and internal IDs in the required schema form.",
             "Keep internal IDs only in structured JSON reference fields.",
             "Never put evidence, requirement, or chunk IDs in user-visible text.",
             "Do not fabricate employers, dates, numbers, tools, outcomes, or responsibilities.",

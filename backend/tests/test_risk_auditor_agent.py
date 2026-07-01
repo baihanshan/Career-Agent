@@ -202,15 +202,15 @@ def test_audit_risks_node_uses_runtime_react_model():
     assert model.invocations
 
 
-def test_factory_uses_langgraph_create_react_agent(monkeypatch):
+def test_factory_uses_langchain_create_agent(monkeypatch):
     calls = []
 
-    def fake_create_react_agent(*, model, tools, prompt, response_format, name):
+    def fake_create_agent(*, model, tools, system_prompt, response_format, name):
         calls.append(
             {
                 "model": model,
                 "tools": tools,
-                "prompt": prompt,
+                "system_prompt": system_prompt,
                 "response_format": response_format,
                 "name": name,
             }
@@ -218,12 +218,8 @@ def test_factory_uses_langgraph_create_react_agent(monkeypatch):
         return "compiled-agent"
 
     monkeypatch.setattr(
-        "backend.app.workflow.risk_auditor_agent.create_react_agent",
-        fake_create_react_agent,
-    )
-    monkeypatch.setattr(
-        "backend.app.workflow.risk_auditor_agent.bind_react_tools",
-        lambda model, tools: "bound-model",
+        "backend.app.workflow.risk_auditor_agent.create_agent",
+        fake_create_agent,
     )
     monkeypatch.setattr(
         "backend.app.workflow.risk_auditor_agent.react_response_format",
@@ -233,12 +229,17 @@ def test_factory_uses_langgraph_create_react_agent(monkeypatch):
     agent = create_risk_auditor_react_agent(model="model", tools=["tool"])
 
     assert agent == "compiled-agent"
-    assert calls[0]["model"] == "bound-model"
+    assert calls[0]["model"] == "model"
     assert calls[0]["tools"] == ["tool"]
     assert calls[0]["name"] == "risk_auditor"
     assert calls[0]["response_format"].__name__ == "InternalRiskReport"
-    assert "resume coverage" in calls[0]["prompt"].lower()
-    assert RISK_AUDITOR_AGENT_PROMPT == calls[0]["prompt"]
+    assert "resume coverage" in calls[0]["system_prompt"].lower()
+    assert RISK_AUDITOR_AGENT_PROMPT == calls[0]["system_prompt"]
+
+
+def test_prompt_contains_explicit_json_example_for_json_mode_providers():
+    assert "json example" in RISK_AUDITOR_AGENT_PROMPT.lower()
+    assert '"risks"' in RISK_AUDITOR_AGENT_PROMPT
 
 
 class _ToolCallingFakeModel(FakeMessagesListChatModel):

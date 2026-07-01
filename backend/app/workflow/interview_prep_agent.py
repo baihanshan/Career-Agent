@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections import defaultdict
 from typing import Any
 
@@ -11,7 +10,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from backend.app.api.schemas import InterviewPrep, InterviewPrepQuestion
 from backend.app.core.errors import AgentExecutionError, ReActErrorCode
-from backend.app.llm.react_model import bind_react_tools, react_response_format
+from backend.app.llm.react_model import react_response_format
 from backend.app.evaluation.quality_gate import (
     PublicOutputQualityGate,
     quality_issues_to_retry_message,
@@ -22,14 +21,15 @@ from backend.app.workflow.domain_models import (
     InternalInterviewQuestion,
     QualityIssue,
 )
+from backend.app.workflow.json_outputs import parse_json_payload_from_text
 from backend.app.workflow.public_output import InternalIdLeakDetector
 from backend.app.workflow.react_tools import build_structured_react_tools
 from backend.app.workflow.state import AnalysisState
 
 try:
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
 except ImportError:  # pragma: no cover - dependency is present in normal installs
-    create_react_agent = None
+    create_agent = None
 
 
 INTERVIEW_PREP_AGENT_PROMPT = """
@@ -38,6 +38,9 @@ Call get_interviewable_requirements to select JD topics. Never turn document_che
 qualification, degree, date, or other resume-verifiable facts into interview questions.
 Call get_requirement_evidence for evidence-grounded answer facts and get_experience before
 writing a resume deep-dive question about that experience.
+All user-visible natural-language fields must be written in Simplified Chinese, including
+question, answer_plan text fields, sample_answer, and resume deep-dive questions. Keep JSON
+keys, enum-like values, IDs, and structured internal fields in the existing schema form.
 
 JD questions must be realistic professional technical, system-design, or behavioral scenarios.
 Include a concrete goal, input/output, constraint, failure mode, or trade-off as appropriate.
@@ -57,6 +60,8 @@ Return only JSON with jd_questions and resume_deep_dive_questions. Every item mu
 question, question_type, competencies_tested, target_requirement_ids, answer_plan,
 sample_answer, supporting_evidence_ids, and optional experience_id. Do not return markdown,
 hidden reasoning, or chain-of-thought.
+JSON example:
+{"jd_questions":[{"question":"如果系统需要在高并发约束下处理数据流，你会如何设计队列、缓存和故障恢复机制？","question_type":"system_design","competencies_tested":["architecture"],"target_requirement_ids":["req_example"],"answer_plan":{"direct_answer":"我会先拆分数据接入、任务调度和结果评估三个环节。","selected_facts":["相关项目中有可复用的工程事实。"],"reasoning_or_tradeoffs":"这样可以在延迟、可靠性和实现复杂度之间做权衡。","result":"方案可通过离线指标和压力测试验证。","reflection_or_transfer":"我会把同样的评估习惯迁移到目标岗位场景中。"},"sample_answer":"我会先澄清输入规模、成功指标和失败恢复要求，再选择可以逐步验证的架构，并用延迟、吞吐和错误恢复指标持续迭代。","supporting_evidence_ids":["ev_example"],"experience_id":"exp_example"}],"resume_deep_dive_questions":[]}
 """.strip()
 
 
@@ -147,6 +152,7 @@ class InterviewPrepAgent:
                     ) from exc
                 continue
 
+            _normalize_supporting_evidence_ids(tool_state, prep)
             all_steps.extend(recorder.steps)
             last_issues = _validate_prep(
                 state=tool_state,
@@ -191,14 +197,13 @@ class InterviewPrepAgent:
 
 
 def create_interview_prep_react_agent(model, tools):
-    if create_react_agent is None:
-        raise RuntimeError("langgraph.prebuilt.create_react_agent is unavailable.")
-    bound_model = bind_react_tools(model, tools)
-    return create_react_agent(
-        model=bound_model,
+    if create_agent is None:
+        raise RuntimeError("langchain.agents.create_agent is unavailable.")
+    return create_agent(
+        model=model,
         tools=tools,
-        prompt=INTERVIEW_PREP_AGENT_PROMPT,
-        response_format=react_response_format(bound_model, InternalInterviewPrep),
+        system_prompt=INTERVIEW_PREP_AGENT_PROMPT,
+        response_format=react_response_format(model, InternalInterviewPrep),
         name="interview_prep",
     )
 
@@ -250,9 +255,56 @@ def _parse_final_prep(result: dict[str, Any]) -> InternalInterviewPrep:
     )
     if not isinstance(content, str):
         raise ValueError("Final Agent message must contain JSON text.")
-    fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL | re.IGNORECASE)
-    payload = json.loads(fenced.group(1) if fenced else content)
+    payload = parse_json_payload_from_text(content)
     return InternalInterviewPrep.model_validate(payload)
+
+
+def _normalize_supporting_evidence_ids(
+    state: AnalysisState,
+    prep: InternalInterviewPrep,
+) -> None:
+    questions = [*prep.jd_questions, *prep.resume_deep_dive_questions]
+    evidence_by_requirement: dict[str, list[str]] = defaultdict(list)
+    evidence_by_chunk: dict[str, list[str]] = defaultdict(list)
+    for item in state.retrieved_evidence:
+        if item.evidence_id not in state.allowed_evidence_ids:
+            continue
+        evidence_by_requirement[item.requirement_id].append(item.evidence_id)
+        evidence_by_chunk[item.chunk_id].append(item.evidence_id)
+
+    experience_chunks: dict[str, set[str]] = {
+        item.experience_id: set(item.raw_source_chunk_ids)
+        for item in state.experience_records
+    }
+    for question in questions:
+        valid_ids = [
+            evidence_id
+            for evidence_id in dict.fromkeys(question.supporting_evidence_ids)
+            if evidence_id in state.allowed_evidence_ids
+        ]
+        if not valid_ids:
+            valid_ids = _fallback_evidence_ids(
+                question,
+                evidence_by_requirement,
+                evidence_by_chunk,
+                experience_chunks,
+            )
+        question.supporting_evidence_ids = valid_ids
+
+
+def _fallback_evidence_ids(
+    question: InternalInterviewQuestion,
+    evidence_by_requirement: dict[str, list[str]],
+    evidence_by_chunk: dict[str, list[str]],
+    experience_chunks: dict[str, set[str]],
+) -> list[str]:
+    candidates: list[str] = []
+    for requirement_id in question.target_requirement_ids:
+        candidates.extend(evidence_by_requirement.get(requirement_id, []))
+    if question.experience_id:
+        for chunk_id in experience_chunks.get(question.experience_id, set()):
+            candidates.extend(evidence_by_chunk.get(chunk_id, []))
+    return list(dict.fromkeys(candidates))[:3]
 
 
 def _validate_prep(
