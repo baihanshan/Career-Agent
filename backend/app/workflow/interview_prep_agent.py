@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -32,6 +34,9 @@ except ImportError:  # pragma: no cover - dependency is present in normal instal
     create_agent = None
 
 
+logger = logging.getLogger(__name__)
+
+
 INTERVIEW_PREP_AGENT_PROMPT = """
 You are the Interview Prep ReAct Agent. Use the structured tools before drafting output.
 Call get_interviewable_requirements to select JD topics. Never turn document_check,
@@ -41,6 +46,11 @@ writing a resume deep-dive question about that experience.
 All user-visible natural-language fields must be written in Simplified Chinese, including
 question, answer_plan text fields, sample_answer, and resume deep-dive questions. Keep JSON
 keys, enum-like values, IDs, and structured internal fields in the existing schema form.
+Do not translate, rename, omit, or add JSON fields. The output must use exactly these schema
+keys: jd_questions, resume_deep_dive_questions, question, question_type,
+competencies_tested, target_requirement_ids, answer_plan, direct_answer, selected_facts,
+reasoning_or_tradeoffs, result, reflection_or_transfer, sample_answer,
+supporting_evidence_ids, and experience_id.
 
 JD questions must be realistic professional technical, system-design, or behavioral scenarios.
 Include a concrete goal, input/output, constraint, failure mode, or trade-off as appropriate.
@@ -120,6 +130,7 @@ class InterviewPrepAgent:
                 recorder,
             )
             agent = create_interview_prep_react_agent(self.model, tools)
+            result: dict[str, Any] | None = None
             try:
                 result = agent.invoke(
                     {
@@ -134,6 +145,12 @@ class InterviewPrepAgent:
                 )
                 prep = _parse_final_prep(result)
             except Exception as exc:
+                _log_structured_output_parse_failure(
+                    exc,
+                    result,
+                    tool_state,
+                    attempt_number,
+                )
                 all_steps.extend(recorder.steps)
                 last_issues = [
                     _quality_issue(
@@ -257,6 +274,60 @@ def _parse_final_prep(result: dict[str, Any]) -> InternalInterviewPrep:
         raise ValueError("Final Agent message must contain JSON text.")
     payload = parse_json_payload_from_text(content)
     return InternalInterviewPrep.model_validate(payload)
+
+
+def _log_structured_output_parse_failure(
+    exc: Exception,
+    result: dict[str, Any] | None,
+    state: AnalysisState,
+    attempt_number: int,
+) -> None:
+    logger.warning(
+        "event=interview_prep_structured_output_parse_failed "
+        "attempt=%s exception=%s reason=%s final_ai_message=%s",
+        attempt_number,
+        exc.__class__.__name__,
+        _safe_debug_text(str(exc), state),
+        _safe_debug_text(_extract_final_ai_content(result), state, limit=1000),
+    )
+
+
+def _extract_final_ai_content(result: dict[str, Any] | None) -> str:
+    if not result:
+        return "[no agent result]"
+    messages = result.get("messages") or []
+    for message in reversed(messages):
+        if getattr(message, "type", "") != "ai":
+            continue
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            return content or "[empty ai message]"
+        try:
+            return json.dumps(content, ensure_ascii=False)
+        except TypeError:
+            return str(content)
+    return "[no ai message]"
+
+
+def _safe_debug_text(
+    value: str,
+    state: AnalysisState,
+    *,
+    limit: int = 480,
+) -> str:
+    sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    if state.run_config.api_key:
+        sanitized = sanitized.replace(state.run_config.api_key, "[redacted]")
+    for document in state.profile_documents:
+        if document.content:
+            sanitized = sanitized.replace(document.content, "[resume redacted]")
+    sanitized = re.sub(
+        r"(?i)hidden\s+(?:chain[- ]of[- ]thought|reasoning)",
+        "[reasoning redacted]",
+        sanitized,
+    )
+    sanitized = " ".join(sanitized.split())
+    return sanitized[:limit]
 
 
 def _normalize_supporting_evidence_ids(
