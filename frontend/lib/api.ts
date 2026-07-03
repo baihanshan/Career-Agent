@@ -1,4 +1,9 @@
-import type { AnalysisRequest, AnalysisResponse } from "./types";
+import type {
+  AnalysisRequest,
+  AnalysisResponse,
+  PDFParseError,
+  PDFParseResponse,
+} from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -22,6 +27,32 @@ export async function runAnalysis(request: AnalysisRequest): Promise<AnalysisRes
         message: "分析请求失败，请检查输入后重试。",
       },
     };
+  }
+
+  return payload;
+}
+
+export class PDFParseRequestError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+    this.name = "PDFParseRequestError";
+  }
+}
+
+export async function parsePdfResume(file: File): Promise<PDFParseResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE_URL}/documents/parse-pdf`, {
+    method: "POST",
+    body: formData,
+  });
+  const payload = (await response.json()) as PDFParseResponse & PDFParseError;
+
+  if (!response.ok) {
+    throw new PDFParseRequestError(
+      payload.error?.code ?? "PDF_PARSE_FAILED",
+      payload.error?.message ?? "PDF 解析失败。"
+    );
   }
 
   return payload;

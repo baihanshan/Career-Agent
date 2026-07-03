@@ -1,0 +1,145 @@
+{
+  "requirements": [
+    {
+      "requirement_id": "req_qualification",
+      "category": "qualification",
+      "text": "计算机或相关专业硕士或博士学历",
+      "importance": "high",
+      "keywords": ["计算机", "硕士", "博士"],
+      "capability_tags": ["education"],
+      "verification_mode": "document_check",
+      "interviewability": false,
+      "question_focus": null,
+      "logical_operator": "OR",
+      "alternatives": ["硕士", "博士"]
+    },
+    {
+      "requirement_id": "req_programming",
+      "category": "hard_skill",
+      "text": "具备扎实的 Python/C++/Java 编程基础，熟悉算法与数据结构",
+      "importance": "high",
+      "keywords": ["Python", "算法", "数据结构"],
+      "capability_tags": ["Python", "algorithms"],
+      "verification_mode": "system_design",
+      "interviewability": true,
+      "question_focus": "在资源约束下选择数据结构并说明性能权衡",
+      "logical_operator": "AND",
+      "alternatives": []
+    },
+    {
+      "requirement_id": "req_multimodal",
+      "category": "responsibility",
+      "text": "设计满足质量与延迟要求的多模态平台",
+      "importance": "high",
+      "keywords": ["多模态", "平台", "延迟"],
+      "capability_tags": ["multimodal", "system-design"],
+      "verification_mode": "system_design",
+      "interviewability": true,
+      "question_focus": "数据、模型、评估和在线服务的架构取舍",
+      "logical_operator": "AND",
+      "alternatives": []
+    },
+    {
+      "requirement_id": "req_domain_or",
+      "category": "hard_skill",
+      "text": "了解计算机视觉、自然语言处理或多模态至少一个领域",
+      "importance": "medium",
+      "keywords": ["计算机视觉", "自然语言处理", "多模态"],
+      "capability_tags": ["CV/ML", "NLP", "multimodal"],
+      "verification_mode": "evidence_check",
+      "interviewability": false,
+      "question_focus": null,
+      "logical_operator": "OR",
+      "alternatives": ["计算机视觉", "自然语言处理", "多模态"]
+    }
+  ],
+  "evidence": [
+    {"evidence_id": "ev_segmentation", "capabilities": ["Python", "CV/ML"], "summary": "语义分割项目使用 Python、PyTorch 和 DeepLabV3+。"},
+    {"evidence_id": "ev_nlp", "capabilities": ["Python", "NLP"], "summary": "客户反馈分类使用 Scikit-learn 和 XGBoost。"},
+    {"evidence_id": "ev_rag", "capabilities": ["NLP", "RAG"], "summary": "多智能体项目使用 SentenceTransformers 与 HNSWlib 实现 RAG。"},
+    {"evidence_id": "ev_multimodal", "capabilities": ["多模态", "CV/ML"], "summary": "多模态实习完成图像转文本模型评估。"}
+  ],
+  "capability_support": {
+    "Python": {"support_level": "strong", "evidence_ids": ["ev_segmentation", "ev_nlp"]},
+    "CV/ML": {"support_level": "strong", "evidence_ids": ["ev_segmentation", "ev_multimodal"]},
+    "NLP": {"support_level": "strong", "evidence_ids": ["ev_nlp", "ev_rag"]},
+    "RAG": {"support_level": "strong", "evidence_ids": ["ev_rag"]},
+    "多模态": {"support_level": "strong", "evidence_ids": ["ev_multimodal"]}
+  },
+  "or_requirement": {
+    "requirement_id": "req_domain_or",
+    "support_level": "strong",
+    "satisfied_alternatives": ["计算机视觉", "自然语言处理", "多模态"]
+  },
+  "interview_prep": {
+    "questions": [
+      {
+        "question": "在实时特征检索系统场景中，内存资源受限且延迟约束严格时，你会选择哪些数据结构，并如何权衡查询速度、更新成本与内存占用？",
+        "question_type": "jd",
+        "competencies_tested": ["算法", "数据结构", "工程权衡"],
+        "target_requirement_ids": ["req_programming"],
+        "answer_plan": {
+          "direct_answer": "先依据读写比例和召回要求确定索引结构。",
+          "selected_facts": ["具备 Python 项目实践"],
+          "reasoning_or_tradeoffs": "比较哈希、树结构和近邻索引的时空复杂度。",
+          "result": "用压测验证延迟和资源指标。",
+          "reflection_or_transfer": "流量变化时重新评估索引与缓存策略。"
+        },
+        "sample_answer": "我会先量化读写比例、数据规模和召回目标，再比较哈希索引、树结构与近邻索引。方案需要用代表性流量压测延迟、内存和更新成本，并为容量增长保留降级与扩容路径。",
+        "supporting_evidence_ids": ["ev_segmentation"],
+        "experience_id": null
+      },
+      {
+        "question": "如果要建设图文多模态平台场景，面对标注噪声、有限算力和在线延迟约束，你会如何设计数据、模型、评估与服务链路，并说明质量和成本之间的关键权衡？",
+        "question_type": "jd",
+        "competencies_tested": ["多模态", "系统设计", "评估"],
+        "target_requirement_ids": ["req_multimodal"],
+        "answer_plan": {
+          "direct_answer": "按数据、模型、离线评估和在线服务分层设计。",
+          "selected_facts": ["做过图像转文本模型评估"],
+          "reasoning_or_tradeoffs": "在效果、延迟、算力与可观测性间做取舍。",
+          "result": "通过离线指标、人工抽检和线上监控闭环验证。",
+          "reflection_or_transfer": "高风险样本进入人工复核和数据回流。"
+        },
+        "sample_answer": "我会把平台拆为数据治理、模型推理、离线评估和在线监控四层。先建立噪声分级与抽检机制，再按延迟预算选择模型和缓存策略；评价同时覆盖任务指标、错误类型和鲁棒性，线上通过漂移监控与人工复核形成回流闭环。",
+        "supporting_evidence_ids": ["ev_multimodal"],
+        "experience_id": null
+      },
+      {
+        "question": "在自然环境语义分割项目中，多尺度特征融合主要解决了什么问题？如果重新实施，你会怎样验证它确实优于更简单的基线？",
+        "question_type": "resume_deep_dive",
+        "competencies_tested": ["模型设计", "实验验证", "复盘"],
+        "target_requirement_ids": ["req_domain_or"],
+        "answer_plan": {
+          "direct_answer": "目标是改善复杂场景下的特征表达。",
+          "selected_facts": ["改进解码器", "开展超参数搜索"],
+          "reasoning_or_tradeoffs": "增益必须和参数量、收敛速度及稳定性一起比较。",
+          "result": "核心指标相对基线得到提升。",
+          "reflection_or_transfer": "增加消融实验和跨场景误差分析。"
+        },
+        "sample_answer": "这项改动针对不同尺度目标表达不均衡的问题。我会固定训练配置做消融实验，分别比较精度、收敛速度和计算开销，并按场景与类别拆分错误；如果增益只来自额外参数，就不能证明融合策略本身有效。",
+        "supporting_evidence_ids": ["ev_segmentation"],
+        "experience_id": "exp_segmentation"
+      }
+    ]
+  },
+  "public_text": [
+    "候选人的机器学习与多模态经历能够支撑岗位核心要求。",
+    "围绕真实系统约束准备架构选择、验证方法与工程权衡。",
+    "多模态实践已有明确支撑，不应标记为能力缺失。"
+  ],
+  "tool_calls": {
+    "resume_evidence": [
+      {"tool_name": "search_resume_evidence", "arguments_summary": "按能力标签检索项目与实习", "return_summary": "返回四条候选证据", "status": "success", "attempt_number": 1},
+      {"tool_name": "evaluate_requirement_support", "arguments_summary": "评估直接与间接支持", "return_summary": "能力均获得有效支持", "status": "success", "attempt_number": 1}
+    ],
+    "interview_prep": [
+      {"tool_name": "get_interviewable_requirements", "arguments_summary": "筛选可面试要求", "return_summary": "排除静态学历核验", "status": "success", "attempt_number": 1},
+      {"tool_name": "get_experience", "arguments_summary": "读取单个语义分割项目", "return_summary": "返回结构化项目事实", "status": "success", "attempt_number": 1}
+    ],
+    "risk_auditor": [
+      {"tool_name": "get_capability_semantics", "arguments_summary": "核对领域能力支持", "return_summary": "Python、NLP、RAG 和多模态均有证据", "status": "success", "attempt_number": 1},
+      {"tool_name": "classify_numeric_claim", "arguments_summary": "区分编号日期版本与指标", "return_summary": "编号、日期和版本无需指标告警", "status": "success", "attempt_number": 1}
+    ]
+  }
+}

@@ -56,24 +56,26 @@ Sprint 2 目标是升级为：
 13. `frontend-output.md`
 14. `error-handling-observability.md`
 15. `testing-fixtures.md`
+16. `pdf-resume-upload.md`
 
 ## 模块进度
 
-- [ ] `project-setup.md`：依赖、环境变量、BGE/Chroma 默认路径
-- [ ] `data-models-state.md`：Sprint 2 schema、workflow state、trace model
-- [ ] `resume-structure.md`：结构化简历 section 与 chunk metadata
-- [ ] `embedding-chroma.md`：BGE embedding、Chroma store、collection lifecycle
-- [ ] `agent-tools-trace.md`：ReAct 工具集与 trace 记录
-- [ ] `jd-analyst-agent.md`：JD 结构化分析节点
-- [ ] `resume-evidence-agent.md`：Resume Evidence ReAct Agent
-- [ ] `match-strategist-agent.md`：匹配策略与排序
-- [ ] `resume-bullet-agent.md`：3 条项目/实习优先简历要点
-- [ ] `interview-prep-agent.md`：轻量 ReAct 面试准备
-- [ ] `risk-auditor-agent.md`：ReAct top 3 风险评估
-- [ ] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
-- [ ] `frontend-output.md`：Sprint 2 前端展示模块
-- [ ] `error-handling-observability.md`：质量优先错误与日志策略
-- [ ] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
+- [x] `project-setup.md`：依赖、环境变量、BGE/Chroma 默认路径
+- [x] `data-models-state.md`：Sprint 2 schema、workflow state、trace model
+- [x] `resume-structure.md`：结构化简历 section 与 chunk metadata
+- [x] `embedding-chroma.md`：BGE embedding、Chroma store、collection lifecycle
+- [x] `agent-tools-trace.md`：ReAct 工具集与 trace 记录
+- [x] `jd-analyst-agent.md`：JD 结构化分析节点
+- [x] `resume-evidence-agent.md`：Resume Evidence ReAct Agent
+- [x] `match-strategist-agent.md`：匹配策略与排序
+- [x] `resume-bullet-agent.md`：3 条项目/实习优先简历要点
+- [x] `interview-prep-agent.md`：轻量 ReAct 面试准备
+- [x] `risk-auditor-agent.md`：ReAct top 3 风险评估
+- [x] `workflow-orchestrator.md`：LangGraph Sprint 2 主流程
+- [x] `frontend-output.md`：Sprint 2 前端展示模块
+- [x] `error-handling-observability.md`：质量优先错误与日志策略
+- [x] `testing-fixtures.md`：Sprint 2 fixtures、集成测试、QA
+- [x] `pdf-resume-upload.md`：文字型 PDF 上传、文本回填与纯文本简历标题识别
 
 ## 新对话启动提示
 
@@ -103,13 +105,15 @@ Sprint 2 目标是升级为：
 
 ## 总体验收
 
-- [ ] 用户输入简历和 JD 后，系统使用 BGE + Chroma 检索项目/实习证据。
-- [ ] 简历要点来自项目/实习，固定 3 条，按 JD 匹配度排序。
-- [ ] 面试准备分为 JD 相关问题和简历深挖问题，并包含完整示范回答。
-- [ ] 风险提示最多 3 条，具体、可解释、可行动。
-- [ ] 前端不展示 cover letter。
-- [ ] 前端不展示 evidence table。
-- [ ] 分析过程详情可展开查看 agent trace。
-- [ ] 关键 ReAct Agent 失败时，前端显示用户友好错误，后台保留具体原因。
-- [ ] 后端测试通过。
-- [ ] 前端检查和构建通过。
+- [x] 用户输入简历和 JD 后，系统使用 BGE + Chroma 检索项目/实习证据。
+- [x] 简历要点来自项目/实习，固定 3 条，按 JD 匹配度排序。
+- [x] 面试准备分为 JD 相关问题和简历深挖问题，并包含完整示范回答。
+- [x] 风险提示最多 3 条，具体、可解释、可行动。
+- [x] 前端不展示 cover letter。
+- [x] 前端不展示 evidence table。
+- [x] 分析过程详情可展开查看 agent trace。
+- [x] 关键 ReAct Agent 失败时，前端显示用户友好错误，后台保留具体原因。
+- [x] 后端测试通过。
+- [x] 前端检查和构建通过。
+- [x] 用户可上传不超过 10 MB 的文字型 PDF，解析文本可编辑且原文件不落盘。
+- [x] PDF 或粘贴纯文本中的项目、实习、教育和技能标题能被正确结构化。

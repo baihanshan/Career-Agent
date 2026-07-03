@@ -1,0 +1,44 @@
+{
+  "resume_evidence": [
+    {
+      "tool_name": "search_resume_evidence",
+      "arguments_summary": "section_filter=['project', 'internship'] top_k=5",
+      "return_summary": "2 project/internship evidence items found.",
+      "status": "success"
+    },
+    {
+      "tool_name": "rerank_evidence",
+      "arguments_summary": "evidence_count=2",
+      "return_summary": "Project and internship evidence ranked first.",
+      "status": "success"
+    }
+  ],
+  "interview_prep": [
+    {
+      "tool_name": "get_high_priority_jd_requirements",
+      "arguments_summary": "importance=high",
+      "return_summary": "2 high-priority requirements found.",
+      "status": "success"
+    },
+    {
+      "tool_name": "draft_answer",
+      "arguments_summary": "question=Python API experience",
+      "return_summary": "Complete evidence-grounded sample answer drafted.",
+      "status": "success"
+    }
+  ],
+  "risk_auditor": [
+    {
+      "tool_name": "check_requirement_coverage",
+      "arguments_summary": "requirement=Python API development",
+      "return_summary": "Requirement covered by project evidence.",
+      "status": "success"
+    },
+    {
+      "tool_name": "rank_top_risks",
+      "arguments_summary": "risk_count=2 limit=3",
+      "return_summary": "Top 2 risks selected.",
+      "status": "success"
+    }
+  ]
+}

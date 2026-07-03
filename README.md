@@ -35,6 +35,16 @@ conda run -n carrer_agent python -m pytest backend/tests
 conda run -n carrer_agent uvicorn backend.app.main:app --reload
 ```
 
+Sprint 2 adds local retrieval dependencies for BGE embeddings and Chroma:
+
+```bash
+export BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
+export BGE_MODEL_CACHE_DIR=/Users/baihanshan/Desktop/bge-models
+export CHROMA_PATH=/Users/baihanshan/Desktop/career-agent-chroma
+```
+
+The first live Sprint 2 retrieval run may download the BGE model into `BGE_MODEL_CACHE_DIR`. Tests can still use the deterministic fake embedding client and in-memory vector store, so the backend test suite does not require a model download or persistent Chroma database.
+
 Frontend development uses Next.js:
 
 ```bash

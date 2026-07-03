@@ -11,10 +11,11 @@ from backend.app.api.schemas import (
     JDRequirement,
     ResumeBullet,
 )
+from backend.app.evaluation.numeric_claims import (
+    extract_numeric_claims,
+    validate_numeric_claims,
+)
 from backend.app.llm.client import LLMService
-
-
-_NUMBER_PATTERN = re.compile(r"\b\d[\d,]*(?:\.\d+)?%?\b")
 
 
 def evaluate_generated_assets(
@@ -40,12 +41,19 @@ def evaluate_generated_assets(
                 evidence_items=evidence_items,
             )
             grounding_warnings.extend(semantic_report.grounding_warnings)
-            coverage_gaps.extend(semantic_report.coverage_gaps)
+            coverage_gaps.extend(
+                _with_requirement_texts(
+                    coverage_gaps=semantic_report.coverage_gaps,
+                    requirements=requirements,
+                )
+            )
             specificity_notes.extend(semantic_report.specificity_notes)
         except Exception:
             specificity_notes.append(
                 "语义证据评估未完成；已保留规则评估结果，请人工复核生成内容。"
             )
+
+    grounding_warnings = _deduplicate_grounding_warnings(grounding_warnings)
 
     overall_status = _overall_status(
         grounding_warnings=grounding_warnings,
@@ -109,24 +117,23 @@ def _check_number_grounding(
     asset_id: str,
     evidence_items: list[EvidenceItem],
 ) -> list[GroundingWarning]:
-    claim_numbers = _normalized_numbers(claim)
-    if not claim_numbers:
-        return []
-
-    evidence_numbers: set[str] = set()
-    for evidence_item in evidence_items:
-        evidence_numbers.update(_normalized_numbers(evidence_item.snippet))
-
-    unsupported_numbers = sorted(claim_numbers - evidence_numbers)
+    numeric_claims = extract_numeric_claims(
+        claim,
+        evidence_ids=[item.evidence_id for item in evidence_items],
+    )
+    unsupported_claims = validate_numeric_claims(numeric_claims, evidence_items)
     return [
         GroundingWarning(
             asset_type="resume_bullet",
             asset_id=asset_id,
-            claim=claim,
-            reason=f"数字 {number} 没有出现在引用的证据中。",
+            claim=numeric_claim.context,
+            reason=(
+                f"量化声明“{numeric_claim.context}”中的 {numeric_claim.value} "
+                "未在引用证据中找到语义等价的支持。"
+            ),
             severity="high",
         )
-        for number in unsupported_numbers
+        for numeric_claim in unsupported_claims
     ]
 
 
@@ -142,12 +149,26 @@ def _check_coverage(
     return [
         CoverageGap(
             requirement_id=requirement.requirement_id,
+            requirement_text=requirement.text,
             reason="高优先级岗位要求没有被生成的简历要点覆盖。",
             severity="high",
         )
         for requirement in requirements
         if requirement.importance == "high"
         and requirement.requirement_id not in covered_requirement_ids
+    ]
+
+
+def _with_requirement_texts(
+    coverage_gaps: list[CoverageGap],
+    requirements: list[JDRequirement],
+) -> list[CoverageGap]:
+    text_by_id = {item.requirement_id: item.text for item in requirements}
+    return [
+        gap
+        if gap.requirement_text
+        else gap.model_copy(update={"requirement_text": text_by_id.get(gap.requirement_id)})
+        for gap in coverage_gaps
     ]
 
 
@@ -165,16 +186,31 @@ def _check_specificity(resume_bullets: list[ResumeBullet]) -> list[str]:
 
 def _claims_from_assets(assets: GeneratedAssets) -> list[str]:
     claims = [bullet.text for bullet in assets.resume_bullets]
-    claims.extend(assets.cover_letter.body)
-    claims.extend(item.prep_suggestion for item in assets.interview_prep)
+    questions = [
+        *assets.interview_prep.jd_questions,
+        *assets.interview_prep.resume_deep_dive_questions,
+    ]
+    claims.extend(item.sample_answer for item in questions)
     return claims
 
 
-def _normalized_numbers(text: str) -> set[str]:
-    return {
-        match.group(0).replace(",", "").rstrip("%")
-        for match in _NUMBER_PATTERN.finditer(text)
-    }
+def _deduplicate_grounding_warnings(
+    warnings: list[GroundingWarning],
+) -> list[GroundingWarning]:
+    deduplicated: list[GroundingWarning] = []
+    seen: set[tuple[str, str]] = set()
+    for warning in warnings:
+        normalized_claim = "".join(
+            character.casefold()
+            for character in warning.claim
+            if character.isalnum()
+        )
+        key = (warning.asset_type, normalized_claim)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduplicated.append(warning)
+    return deduplicated
 
 
 def _overall_status(

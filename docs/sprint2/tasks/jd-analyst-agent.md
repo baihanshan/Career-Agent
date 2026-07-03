@@ -1,5 +1,7 @@
 # Sprint 2 JD Analyst Agent 任务
 
+状态：已完成
+
 ## 目标
 
 将 JD 解析封装为稳定的专业 Agent 节点，输出高质量结构化岗位要求，不使用 ReAct。
@@ -20,11 +22,10 @@
 
 ## 最小任务清单
 
-- [ ] 更新 JD extraction prompt，要求保留用户可读的 JD requirement text。
-- [ ] 保留内部 requirement_id，但前端展示使用 requirement text。
-- [ ] 让 parser 继续兼容模型字段变体。
-- [ ] 为 high priority requirement 增加明确判断标准。
-- [ ] 编写测试：高优先级 JD 要求能被标记为 `high`。
-- [ ] 编写测试：JD requirement text 可用于前端风险提示。
-- [ ] 编写测试：模型返回 wrapper object 时仍能解析。
-
+- [x] 更新 JD extraction prompt，要求保留用户可读的 JD requirement text。
+- [x] 保留内部 requirement_id，但前端展示使用 requirement text。
+- [x] 让 parser 继续兼容模型字段变体。
+- [x] 为 high priority requirement 增加明确判断标准。
+- [x] 编写测试：高优先级 JD 要求能被标记为 `high`。
+- [x] 编写测试：JD requirement text 可用于前端风险提示。
+- [x] 编写测试：模型返回 wrapper object 时仍能解析。

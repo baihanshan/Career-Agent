@@ -9,7 +9,12 @@ import { ProfileInput } from "../components/ProfileInput";
 import { ResultView } from "../components/ResultView";
 import { RunStatus } from "../components/RunStatus";
 import { runAnalysis } from "../lib/api";
-import type { AnalysisResult, AnalysisResponse } from "../lib/types";
+import type {
+  AnalysisResult,
+  AnalysisResponse,
+  PDFParseResponse,
+  SourceType,
+} from "../lib/types";
 
 type UiStatus = "idle" | "loading" | "success" | "error";
 
@@ -23,8 +28,30 @@ const DEFAULT_LLM_SETTINGS: LlmSettingsValue = {
   temperature: 0.2,
 };
 
+const WORKFLOW_ERROR_MESSAGES: Record<string, string> = {
+  JD_ANALYST_ERROR: "岗位描述分析失败，请检查 JD 内容后重试。",
+  LLM_OUTPUT_PARSE_ERROR: "岗位描述暂时无法解析，请调整内容后重试。",
+  LLM_PROVIDER_TIMEOUT: "模型响应超时，请稍后重试或更换模型。",
+  REACT_MODEL_UNAVAILABLE: "当前模型不支持智能体工具调用，请更换模型。",
+  REACT_TOOL_CALL_ERROR: "模型工具调用失败，请稍后重试或更换模型。",
+  REACT_OUTPUT_PARSE_ERROR: "模型未生成有效的结构化结果，请重试或更换模型。",
+  REACT_QUALITY_GATE_FAILED: "生成结果未通过质量校验，请重新分析。",
+  REACT_EVIDENCE_VIOLATION: "生成结果引用了无效证据，系统已阻止展示。",
+  RESUME_EVIDENCE_AGENT_ERROR: "未找到足够的项目或实习经历来支撑本次分析。",
+  MATCH_STRATEGIST_ERROR: "岗位匹配分析失败，请稍后重试。",
+  RESUME_BULLET_AGENT_ERROR: "简历要点生成失败，请稍后重试。",
+  INTERVIEW_PREP_AGENT_ERROR: "面试准备生成失败，请稍后重试。",
+  RISK_AUDITOR_AGENT_ERROR: "风险评估失败，请稍后重试。",
+  VECTOR_STORE_ERROR: "个人材料处理失败，请稍后重试。",
+  INTERNAL_ID_LEAK: "生成结果包含内部引用，系统已阻止展示，请重新分析。",
+};
+
 export default function Home() {
   const [profileMaterials, setProfileMaterials] = useState("");
+  const [profileSource, setProfileSource] = useState<{
+    sourceName: string;
+    sourceType: SourceType;
+  }>({ sourceName: "profile.md", sourceType: "markdown" });
   const [jobDescription, setJobDescription] = useState("");
   const [llmSettings, setLlmSettings] = useState<LlmSettingsValue>(DEFAULT_LLM_SETTINGS);
   const [status, setStatus] = useState<UiStatus>("idle");
@@ -73,8 +100,8 @@ export default function Home() {
       const response = await runAnalysis({
         profile_documents: [
           {
-            source_name: "profile.md",
-            source_type: "markdown",
+            source_name: profileSource.sourceName,
+            source_type: profileSource.sourceType,
             content: profileMaterials,
           },
         ],
@@ -103,11 +130,7 @@ export default function Home() {
   function handleAnalysisResponse(response: AnalysisResponse) {
     if (response.status === "failed") {
       setStatus("error");
-      setErrorMessage(
-        typeof response.error?.message === "string"
-          ? response.error.message
-          : "分析失败，请检查输入后重试。"
-      );
+      setErrorMessage(friendlyAnalysisError(response.error?.code));
       return;
     }
 
@@ -128,14 +151,21 @@ export default function Home() {
           <p className="eyebrow">Evidence-grounded Career Agent</p>
           <h1>CareerPilot Agent</h1>
           <p>
-            粘贴个人材料和目标岗位 JD，生成带证据引用的匹配分析、简历要点、求职信草稿和面试准备建议。
+            粘贴个人材料和目标岗位 JD，生成带证据引用的匹配分析、简历要点、面试准备和风险提示。
           </p>
         </div>
       </section>
 
       <form className="input-grid" onSubmit={handleSubmit}>
         <LlmSettings value={llmSettings} onChange={setLlmSettings} />
-        <ProfileInput value={profileMaterials} onChange={setProfileMaterials} />
+        <ProfileInput
+          value={profileMaterials}
+          onChange={setProfileMaterials}
+          onPdfParsed={(parsed: PDFParseResponse) => {
+            setProfileMaterials(parsed.text);
+            setProfileSource({ sourceName: parsed.source_name, sourceType: "text" });
+          }}
+        />
         <JobDescriptionInput value={jobDescription} onChange={setJobDescription} />
         <div className="form-actions">
           <button type="submit" disabled={!canSubmit || status === "loading"}>
@@ -152,12 +182,18 @@ export default function Home() {
   );
 }
 
+function friendlyAnalysisError(code?: string) {
+  return code && WORKFLOW_ERROR_MESSAGES[code]
+    ? WORKFLOW_ERROR_MESSAGES[code]
+    : "分析失败，请检查输入后重试。";
+}
+
 function EmptyState() {
   return (
     <section className="empty-state">
       <h2>结果区</h2>
       <p>
-        完成分析后，这里会展示匹配总结、证据表、简历要点、求职信草稿、面试准备、流程警告和风险提示。
+        完成分析后，这里会展示匹配总结、简历要点、面试准备、流程警告和风险提示。
       </p>
     </section>
   );
@@ -171,7 +207,6 @@ function isAnalysisResult(result: AnalysisResponse["result"]): result is Analysi
   const candidate = result as Partial<AnalysisResult>;
   return Boolean(
     Array.isArray(candidate.jd_requirements) &&
-      Array.isArray(candidate.evidence_table) &&
       Array.isArray(candidate.match_analysis) &&
       candidate.generated_assets &&
       candidate.evaluation_report

@@ -1,5 +1,7 @@
 import json
 
+import httpx
+
 from backend.app.api.schemas import AnalysisRequest, EvidenceItem, JDRequirement, RunConfig
 from backend.app.documents.models import ProfileChunk, ProfileDocument
 from backend.app.llm.client import LLMService
@@ -7,6 +9,7 @@ from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.embeddings import FakeEmbeddingClient
 from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
+from backend.app.workflow.domain_models import EvidenceSelection
 from backend.app.workflow.nodes import (
     WorkflowServices,
     analyze_jd,
@@ -14,6 +17,7 @@ from backend.app.workflow.nodes import (
     finalize_response,
     index_profile,
     parse_inputs,
+    public_output_gate,
     retrieve_evidence,
     score_match,
     write_application,
@@ -61,6 +65,19 @@ def test_analyze_jd_retries_llm_parser_error_once():
     assert client.call_counts["extract_jd_requirements"] == 2
 
 
+def test_analyze_jd_reports_provider_timeout_separately_from_invalid_jd():
+    state = parse_inputs(_request())
+    services = WorkflowServices(
+        retrieval_service=_retrieval_service(),
+        llm_service=LLMService(client=_TimeoutLLMClient()),
+    )
+
+    next_state = analyze_jd(state, services)
+
+    assert next_state.errors[0].code == "LLM_PROVIDER_TIMEOUT"
+    assert next_state.errors[0].message == "The model provider timed out."
+
+
 def test_retrieve_evidence_writes_evidence_table():
     services = _services()
     chunk = _chunk("chunk_python", "Built Python FastAPI services.")
@@ -87,6 +104,9 @@ def test_score_match_writes_match_analysis():
 
     assert next_state.match_analysis[0].match_level == "strong"
     assert next_state.match_analysis[0].evidence_ids == ["ev_python"]
+    assert next_state.match_strategy is not None
+    assert next_state.match_strategy.covered_requirement_ids == ["req_python"]
+    assert next_state.match_strategy.ranked_evidence[0].evidence_id == "ev_python"
 
 
 def test_write_application_writes_generated_assets():
@@ -94,6 +114,16 @@ def test_write_application_writes_generated_assets():
         update={
             "jd_requirements": [_requirement("req_python")],
             "retrieved_evidence": [_evidence("ev_python", "req_python", score=0.9)],
+            "evidence_selections": [
+                EvidenceSelection(
+                    requirement_id="req_python",
+                    selected_evidence_ids=["ev_python"],
+                    support_level="strong",
+                    support_types=["direct"],
+                    rationale="The project directly supports the requirement.",
+                )
+            ],
+            "allowed_evidence_ids": {"ev_python"},
             "match_analysis": [_match("req_python", ["ev_python"])],
         }
     )
@@ -125,13 +155,13 @@ def test_finalize_response_outputs_completed_api_response_result():
         }
     )
 
-    response = finalize_response(state)
+    response = finalize_response(public_output_gate(state, _services()))
 
     assert response.status == "completed"
-    assert response.result["jd_requirements"][0]["requirement_id"] == "req_python"
-    assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"] == [
-        "ev_python"
-    ]
+    assert response.result["jd_requirements"][0]["text"] == "Python API development"
+    assert "requirement_id" not in response.result["jd_requirements"][0]
+    assert "match_strategy" not in response.result
+    assert "evidence_ids" not in response.result["generated_assets"]["resume_bullets"][0]
 
 
 def test_vector_store_failure_returns_indexing_error_response():
@@ -148,7 +178,6 @@ def test_vector_store_failure_returns_indexing_error_response():
     assert response.error == {
         "code": "VECTOR_STORE_ERROR",
         "message": "Profile materials could not be indexed. Please try again.",
-        "details": None,
     }
 
 
@@ -248,9 +277,9 @@ def _match(requirement_id: str, evidence_ids: list[str]):
 
 def _generated_assets():
     from backend.app.api.schemas import (
-        CoverLetterDraft,
         GeneratedAssets,
-        InterviewPrepItem,
+        InterviewPrep,
+        InterviewPrepQuestion,
         ResumeBullet,
     )
 
@@ -258,26 +287,22 @@ def _generated_assets():
         match_summary="Strong fit for Python API work.",
         resume_bullets=[
             ResumeBullet(
-                text="Built Python APIs backed by project evidence.",
+                text=f"Built Python APIs backed by project evidence {index}.",
                 target_requirement_ids=["req_python"],
                 evidence_ids=["ev_python"],
                 risk_level="low",
             )
+            for index in range(1, 4)
         ],
-        cover_letter=CoverLetterDraft(
-            opening="I am excited to apply.",
-            body=["My Python API project aligns with the role."],
-            closing="Thank you for your consideration.",
-            evidence_ids=["ev_python"],
-        ),
-        interview_prep=[
-            InterviewPrepItem(
-                topic="Python API project",
-                why_it_matters="The role asks for API development.",
+        interview_prep=InterviewPrep(
+            jd_questions=[
+                InterviewPrepQuestion(
+                question="How did you build the Python API project?",
+                sample_answer="I built the API and can explain the implementation tradeoffs.",
                 supporting_evidence_ids=["ev_python"],
-                prep_suggestion="Prepare a concise project walkthrough.",
-            )
-        ],
+                )
+            ]
+        ),
     )
 
 
@@ -291,6 +316,11 @@ class _SequentialLLMClient:
         responses = self.responses[prompt_key]
         index = min(self.call_counts[prompt_key] - 1, len(responses) - 1)
         return responses[index]
+
+
+class _TimeoutLLMClient:
+    def generate(self, prompt_key, prompt, variables):
+        raise httpx.ReadTimeout("provider exceeded request timeout")
 
 
 class _FailingRetrievalService:

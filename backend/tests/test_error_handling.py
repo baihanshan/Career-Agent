@@ -1,9 +1,11 @@
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api.schemas import AnalysisRequest
 from backend.app.core.errors import AppError, ProcessingWarning
+from backend.app.core.errors import ReActErrorCode
 from backend.app.documents.models import ProfileDocument
 from backend.app.llm.client import LLMService
 from backend.app.retrieval.embeddings import FakeEmbeddingClient
@@ -11,6 +13,7 @@ from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import run_workflow
 from backend.app.workflow.nodes import WorkflowServices
+from backend.app.workflow.resume_evidence_agent import ResumeEvidenceAgentError
 
 
 def test_app_error_and_processing_warning_models_are_serializable():
@@ -61,7 +64,6 @@ def test_vector_store_failure_returns_vector_store_error_code():
     assert response.error == {
         "code": "VECTOR_STORE_ERROR",
         "message": "Profile materials could not be indexed. Please try again.",
-        "details": None,
     }
 
 
@@ -86,7 +88,7 @@ def test_short_profile_material_generates_warning_without_blocking_workflow():
                 document_id="doc_short",
                 source_name="short.md",
                 source_type="markdown",
-                content="Python API",
+                content="# 项目\nCareerPilot Python API",
             )
         ],
         job_description="We need Python API experience.",
@@ -104,7 +106,7 @@ def test_short_profile_material_generates_warning_without_blocking_workflow():
     ]
 
 
-def test_weak_evidence_stays_in_evaluation_report_not_api_error():
+def test_missing_resume_evidence_returns_user_friendly_retrieval_error():
     request = AnalysisRequest(
         profile_documents=[
             ProfileDocument(
@@ -119,11 +121,80 @@ def test_weak_evidence_stays_in_evaluation_report_not_api_error():
 
     response = run_workflow(request=request, services=_services())
 
-    assert response.status == "completed"
-    assert response.error is None
-    assert response.result["evaluation_report"]["overall_status"] in {
-        "pass_with_warnings",
-        "fail",
+    assert response.status == "failed"
+    assert response.error["code"] == "REACT_QUALITY_GATE_FAILED"
+    assert response.error["message"] == "Could not find usable resume evidence for this JD."
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        ReActErrorCode.REACT_TOOL_CALL_ERROR.value,
+        ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value,
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value,
+        ReActErrorCode.REACT_QUALITY_GATE_FAILED.value,
+        ReActErrorCode.REACT_EVIDENCE_VIOLATION.value,
+    ],
+)
+def test_react_failures_preserve_stable_error_code_without_partial_result(error_code):
+    services = _services()
+    services.resume_evidence_agent = _FailingResumeEvidenceAgent(error_code)
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.status == "failed"
+    assert response.result is None
+    assert response.error["code"] == error_code
+    assert set(response.error) == {"code", "message"}
+
+
+def test_react_output_parse_failure_reports_the_actual_failure_stage():
+    services = _services()
+    services.resume_evidence_agent = _FailingResumeEvidenceAgent(
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value
+    )
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.error == {
+        "code": "REACT_OUTPUT_PARSE_ERROR",
+        "message": "The model did not return valid structured output.",
+    }
+
+
+def test_react_recursion_limit_failure_reports_the_actual_failure_stage():
+    services = _services()
+    services.resume_evidence_agent = _FailingResumeEvidenceAgent(
+        ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value
+    )
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.error == {
+        "code": "REACT_RECURSION_LIMIT_ERROR",
+        "message": "The model used too many evidence-search steps before producing a final answer.",
+    }
+
+
+def test_unsupported_react_model_returns_stable_error(monkeypatch):
+    from backend.app.llm.react_model import ReActModelUnavailableError
+    from backend.app.workflow import service
+
+    monkeypatch.setattr(
+        service,
+        "_default_services",
+        lambda run_config: (_ for _ in ()).throw(
+            ReActModelUnavailableError("Configured model cannot bind tools.")
+        ),
+    )
+
+    response = service.run_analysis(_request())
+
+    assert response["status"] == "failed"
+    assert response["result"] is None
+    assert response["error"] == {
+        "code": "REACT_MODEL_UNAVAILABLE",
+        "message": "The configured model cannot run tool-calling agents.",
     }
 
 
@@ -161,6 +232,19 @@ class _FailingRetrievalService:
 
     def retrieve_evidence(self, requirements, top_k):
         raise AssertionError("retrieve_evidence should not run after indexing failure")
+
+
+class _FailingResumeEvidenceAgent:
+    def __init__(self, code):
+        self.code = code
+
+    def run(self, state, retrieval_service):
+        raise ResumeEvidenceAgentError(
+            "Unsafe internal failure detail.",
+            failed_tool="structured_tool",
+            trace_summary="steps=1 tools=structured_tool statuses=error",
+            code=self.code,
+        )
 
 
 class _MalformedRequirementsLLMClient:
@@ -203,18 +287,13 @@ def _assets_from_context(variables):
         "match_summary": "Generated summary based on evidence.",
         "resume_bullets": [
             {
-                "text": "Built Python APIs backed by project evidence.",
+                "text": f"Built Python APIs backed by project evidence {index}.",
                 "target_requirement_ids": ["req_python"],
                 "evidence_ids": bullet_evidence_ids,
                 "risk_level": "low" if bullet_evidence_ids else "high",
             }
+            for index in range(1, 4)
         ],
-        "cover_letter": {
-            "opening": "I am excited to apply.",
-            "body": ["My background aligns with the role."],
-            "closing": "Thank you for your consideration.",
-            "evidence_ids": bullet_evidence_ids,
-        },
         "interview_prep": [
             {
                 "topic": "Evidence-backed discussion",

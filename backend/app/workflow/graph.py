@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -8,25 +9,34 @@ from backend.app.api.schemas import AnalysisRequest, AnalysisResponse
 from backend.app.workflow.nodes import (
     WorkflowServices,
     analyze_jd,
+    audit_risks,
     evaluate_grounding,
     finalize_response,
+    generate_interview_prep,
     index_profile,
     parse_inputs,
+    public_output_gate,
     retrieve_evidence,
     score_match,
     write_application,
 )
 from backend.app.workflow.state import AnalysisState
+from backend.app.core.errors import WorkflowWarningCode
+
+
+logger = logging.getLogger(__name__)
 
 
 WORKFLOW_NODE_ORDER = [
     "parse_inputs",
     "index_profile",
-    "analyze_jd",
-    "retrieve_evidence",
-    "score_match",
-    "write_application",
-    "evaluate_grounding",
+    "jd_analyst",
+    "resume_evidence_agent",
+    "match_strategist",
+    "resume_bullet_agent",
+    "interview_prep_agent",
+    "risk_auditor_agent",
+    "public_output_gate",
     "finalize_response",
 ]
 
@@ -42,19 +52,30 @@ def build_analysis_graph(services: WorkflowServices):
 
     graph.add_node("parse_inputs", lambda graph_state: _parse_inputs_node(graph_state))
     graph.add_node("index_profile", lambda graph_state: _index_profile_node(graph_state, services))
-    graph.add_node("analyze_jd", lambda graph_state: _analyze_jd_node(graph_state, services))
+    graph.add_node("jd_analyst", lambda graph_state: _jd_analyst_node(graph_state, services))
     graph.add_node(
-        "retrieve_evidence",
-        lambda graph_state: _retrieve_evidence_node(graph_state, services),
-    )
-    graph.add_node("score_match", lambda graph_state: _score_match_node(graph_state, services))
-    graph.add_node(
-        "write_application",
-        lambda graph_state: _write_application_node(graph_state, services),
+        "resume_evidence_agent",
+        lambda graph_state: _resume_evidence_agent_node(graph_state, services),
     )
     graph.add_node(
-        "evaluate_grounding",
-        lambda graph_state: _evaluate_grounding_node(graph_state, services),
+        "match_strategist",
+        lambda graph_state: _match_strategist_node(graph_state, services),
+    )
+    graph.add_node(
+        "resume_bullet_agent",
+        lambda graph_state: _resume_bullet_agent_node(graph_state, services),
+    )
+    graph.add_node(
+        "interview_prep_agent",
+        lambda graph_state: _interview_prep_agent_node(graph_state, services),
+    )
+    graph.add_node(
+        "risk_auditor_agent",
+        lambda graph_state: _risk_auditor_agent_node(graph_state, services),
+    )
+    graph.add_node(
+        "public_output_gate",
+        lambda graph_state: _public_output_gate_node(graph_state, services),
     )
     graph.add_node("finalize_response", lambda graph_state: _finalize_response_node(graph_state))
 
@@ -63,26 +84,40 @@ def build_analysis_graph(services: WorkflowServices):
     graph.add_conditional_edges(
         "index_profile",
         _error_route,
-        {"error": "finalize_response", "ok": "analyze_jd"},
+        {"error": "finalize_response", "ok": "jd_analyst"},
     )
     graph.add_conditional_edges(
-        "analyze_jd",
+        "jd_analyst",
         _error_route,
-        {"error": "finalize_response", "ok": "retrieve_evidence"},
+        {"error": "finalize_response", "ok": "resume_evidence_agent"},
     )
     graph.add_conditional_edges(
-        "retrieve_evidence",
+        "resume_evidence_agent",
         _error_route,
-        {"error": "finalize_response", "ok": "score_match"},
+        {"error": "finalize_response", "ok": "match_strategist"},
     )
-    graph.add_edge("score_match", "write_application")
     graph.add_conditional_edges(
-        "write_application",
+        "match_strategist",
         _error_route,
-        {"error": "finalize_response", "ok": "evaluate_grounding"},
+        {"error": "finalize_response", "ok": "resume_bullet_agent"},
     )
     graph.add_conditional_edges(
-        "evaluate_grounding",
+        "resume_bullet_agent",
+        _error_route,
+        {"error": "finalize_response", "ok": "interview_prep_agent"},
+    )
+    graph.add_conditional_edges(
+        "interview_prep_agent",
+        _error_route,
+        {"error": "finalize_response", "ok": "risk_auditor_agent"},
+    )
+    graph.add_conditional_edges(
+        "risk_auditor_agent",
+        _error_route,
+        {"error": "finalize_response", "ok": "public_output_gate"},
+    )
+    graph.add_conditional_edges(
+        "public_output_gate",
         _error_route,
         {"error": "finalize_response", "ok": "finalize_response"},
     )
@@ -92,8 +127,20 @@ def build_analysis_graph(services: WorkflowServices):
 
 
 def run_workflow(request: AnalysisRequest, services: WorkflowServices) -> AnalysisResponse:
-    graph = build_analysis_graph(services)
-    return graph.invoke({"request": request})["response"]
+    try:
+        graph = build_analysis_graph(services)
+        return graph.invoke({"request": request})["response"]
+    finally:
+        cleanup = getattr(services.retrieval_service, "cleanup", None)
+        if callable(cleanup):
+            try:
+                cleanup()
+            except Exception as exc:
+                logger.warning(
+                    "code=%s reason=%s",
+                    WorkflowWarningCode.COLLECTION_CLEANUP_FAILED.value,
+                    _safe_log_text(str(exc)),
+                )
 
 
 def _parse_inputs_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:
@@ -107,44 +154,67 @@ def _index_profile_node(
     return {"state": index_profile(graph_state["state"], services)}
 
 
-def _analyze_jd_node(
+def _jd_analyst_node(
     graph_state: AnalysisGraphState,
     services: WorkflowServices,
 ) -> AnalysisGraphState:
     return {"state": analyze_jd(graph_state["state"], services)}
 
 
-def _retrieve_evidence_node(
+def _resume_evidence_agent_node(
     graph_state: AnalysisGraphState,
     services: WorkflowServices,
 ) -> AnalysisGraphState:
     return {"state": retrieve_evidence(graph_state["state"], services)}
 
 
-def _score_match_node(
+def _match_strategist_node(
     graph_state: AnalysisGraphState,
     services: WorkflowServices,
 ) -> AnalysisGraphState:
     return {"state": score_match(graph_state["state"], services)}
 
 
-def _write_application_node(
+def _resume_bullet_agent_node(
     graph_state: AnalysisGraphState,
     services: WorkflowServices,
 ) -> AnalysisGraphState:
     return {"state": write_application(graph_state["state"], services)}
 
 
-def _evaluate_grounding_node(
+def _interview_prep_agent_node(
     graph_state: AnalysisGraphState,
     services: WorkflowServices,
 ) -> AnalysisGraphState:
-    return {"state": evaluate_grounding(graph_state["state"], services)}
+    return {"state": generate_interview_prep(graph_state["state"], services)}
+
+
+def _risk_auditor_agent_node(
+    graph_state: AnalysisGraphState,
+    services: WorkflowServices,
+) -> AnalysisGraphState:
+    evaluated_state = evaluate_grounding(graph_state["state"], services)
+    if evaluated_state.errors:
+        return {"state": evaluated_state}
+    return {"state": audit_risks(evaluated_state, services)}
 
 
 def _finalize_response_node(graph_state: AnalysisGraphState) -> AnalysisGraphState:
     return {"response": finalize_response(graph_state["state"])}
 
 
+def _public_output_gate_node(
+    graph_state: AnalysisGraphState,
+    services: WorkflowServices,
+) -> AnalysisGraphState:
+    return {"state": public_output_gate(graph_state["state"], services)}
+
+
 def _error_route(graph_state: AnalysisGraphState) -> str:
     return "error" if graph_state["state"].errors else "ok"
+
+
+def _safe_log_text(value: str, limit: int = 320) -> str:
+    sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    sanitized = " ".join(sanitized.split())
+    return sanitized[:limit]

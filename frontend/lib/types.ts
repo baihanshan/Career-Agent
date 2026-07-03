@@ -12,6 +12,7 @@ export type Severity = "low" | "medium" | "high";
 export type OverallStatus = "pass" | "pass_with_warnings" | "fail";
 export type AnalysisStatus = "completed" | "failed";
 export type LlmProvider = "local" | "openai" | "deepseek" | "openai_compatible";
+export type ProfileSectionType = "internship" | "project" | "skill" | "education" | "other";
 
 export interface ProfileDocument {
   document_id?: string;
@@ -21,11 +22,30 @@ export interface ProfileDocument {
   created_at?: string;
 }
 
+export interface PDFParseResponse {
+  source_name: string;
+  page_count: number;
+  text: string;
+}
+
+export interface PDFParseError {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
 export interface ProfileChunk {
   chunk_id: string;
   document_id: string;
   source_name: string;
   section_label?: string | null;
+  section_type: ProfileSectionType;
+  section_title?: string | null;
+  company_name?: string | null;
+  role_title?: string | null;
+  project_name?: string | null;
+  technologies: string[];
   text: string;
   start_char?: number | null;
   end_char?: number | null;
@@ -33,69 +53,59 @@ export interface ProfileChunk {
 }
 
 export interface JDRequirement {
-  requirement_id: string;
   category: RequirementCategory;
   text: string;
   importance: Importance;
-  keywords: string[];
-}
-
-export interface EvidenceItem {
-  evidence_id: string;
-  requirement_id: string;
-  chunk_id: string;
-  source_name: string;
-  section_label?: string | null;
-  snippet: string;
-  score: number;
+  capability_tags: string[];
+  verification_mode:
+    | "document_check"
+    | "evidence_check"
+    | "technical_question"
+    | "system_design"
+    | "behavioral_question";
+  interviewability: boolean;
+  question_focus?: string | null;
+  logical_operator: "AND" | "OR";
+  alternatives: string[];
 }
 
 export interface MatchItem {
-  requirement_id: string;
+  requirement_text: string;
   match_level: MatchLevel;
   rationale: string;
-  evidence_ids: string[];
   gap_note?: string | null;
 }
 
 export interface ResumeBullet {
   text: string;
-  target_requirement_ids: string[];
-  evidence_ids: string[];
   risk_level: RiskLevel;
 }
 
-export interface CoverLetterDraft {
-  opening: string;
-  body: string[];
-  closing: string;
-  evidence_ids: string[];
+export interface InterviewPrepQuestion {
+  question: string;
+  sample_answer: string;
 }
 
-export interface InterviewPrepItem {
-  topic: string;
-  why_it_matters: string;
-  supporting_evidence_ids: string[];
-  prep_suggestion: string;
+export interface InterviewPrep {
+  jd_questions: InterviewPrepQuestion[];
+  resume_deep_dive_questions: InterviewPrepQuestion[];
 }
 
 export interface GeneratedAssets {
   match_summary: string;
   resume_bullets: ResumeBullet[];
-  cover_letter: CoverLetterDraft;
-  interview_prep: InterviewPrepItem[];
+  interview_prep: InterviewPrep;
 }
 
 export interface GroundingWarning {
-  asset_type: "resume_bullet" | "cover_letter" | "match_summary" | "interview_prep";
-  asset_id: string;
+  asset_type: "resume_bullet" | "match_summary" | "interview_prep";
   claim: string;
   reason: string;
   severity: Severity;
 }
 
 export interface CoverageGap {
-  requirement_id: string;
+  requirement_text: string;
   reason: string;
   severity: Severity;
 }
@@ -106,6 +116,20 @@ export interface ProcessingWarning {
   source?: string | null;
 }
 
+export interface AgentToolResult {
+  tool_name: string;
+  arguments_summary: string;
+  return_summary: string;
+  status: "success" | "error";
+  attempt_number: number;
+}
+
+export interface AgentTrace {
+  agent_name: string;
+  steps: AgentToolResult[];
+  final_decision_summary: string;
+}
+
 export interface EvaluationReport {
   grounding_warnings: GroundingWarning[];
   coverage_gaps: CoverageGap[];
@@ -114,13 +138,28 @@ export interface EvaluationReport {
   overall_status: OverallStatus;
 }
 
+export interface RiskItem {
+  risk_type: "JD 未覆盖" | "简历表述太泛" | "证据不足" | "生成内容可能夸大";
+  title: string;
+  jd_requirement_summary: string;
+  resume_current_state: string;
+  risk_reason: string;
+  recommendation: string;
+  severity: Severity;
+}
+
+export interface RiskReport {
+  risks: RiskItem[];
+}
+
 export interface AnalysisResult {
   jd_requirements: JDRequirement[];
-  evidence_table: EvidenceItem[];
   match_analysis: MatchItem[];
   generated_assets: GeneratedAssets;
   evaluation_report: EvaluationReport;
+  risk_report?: RiskReport | null;
   processing_warnings?: ProcessingWarning[];
+  agent_traces?: AgentTrace[];
 }
 
 export interface AnalysisRequest {
@@ -140,5 +179,11 @@ export interface AnalysisResponse {
   analysis_id: string;
   status: AnalysisStatus;
   result?: AnalysisResult | Record<string, unknown> | null;
-  error?: Record<string, unknown> | null;
+  error?: AnalysisError | null;
+}
+
+export interface AnalysisError {
+  code?: string;
+  message?: string;
+  details?: Record<string, unknown> | null;
 }

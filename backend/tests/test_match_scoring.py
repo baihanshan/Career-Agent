@@ -1,5 +1,9 @@
 from backend.app.api.schemas import EvidenceItem, JDRequirement
-from backend.app.workflow.match_scoring import score_matches, score_requirement
+from backend.app.workflow.match_scoring import (
+    build_match_strategy,
+    score_matches,
+    score_requirement,
+)
 
 
 def test_requirement_without_evidence_is_missing():
@@ -66,6 +70,57 @@ def test_match_evidence_ids_are_filtered_to_current_requirement_evidence():
     assert match.evidence_ids == ["ev_python"]
 
 
+def test_project_evidence_is_prioritized_over_similar_skill_evidence():
+    match = score_requirement(
+        _requirement("req_python"),
+        [
+            _evidence("ev_skill", "req_python", score=0.78, section_type="skill"),
+            _evidence("ev_project", "req_python", score=0.74, section_type="project"),
+        ],
+    )
+
+    assert match.match_level == "strong"
+    assert match.evidence_ids[:2] == ["ev_project", "ev_skill"]
+
+
+def test_missing_requirement_is_recorded_in_match_strategy():
+    requirements = [_requirement("req_python"), _requirement("req_sql")]
+    evidence_items = [_evidence("ev_python", "req_python", score=0.91, section_type="project")]
+    matches = score_matches(requirements, evidence_items)
+
+    strategy = build_match_strategy(
+        requirements=requirements,
+        evidence_items=evidence_items,
+        match_items=matches,
+    )
+
+    assert strategy.covered_requirement_ids == ["req_python"]
+    assert strategy.missing_requirement_ids == ["req_sql"]
+
+
+def test_top_three_resume_candidates_are_sorted_by_jd_match_priority():
+    requirements = [_requirement("req_python"), _requirement("req_sql")]
+    evidence_items = [
+        _evidence("ev_skill_high", "req_python", score=0.96, section_type="skill"),
+        _evidence("ev_project_mid", "req_python", score=0.82, section_type="project"),
+        _evidence("ev_internship", "req_sql", score=0.76, section_type="internship"),
+        _evidence("ev_project_low", "req_sql", score=0.52, section_type="project"),
+    ]
+    matches = score_matches(requirements, evidence_items)
+
+    strategy = build_match_strategy(
+        requirements=requirements,
+        evidence_items=evidence_items,
+        match_items=matches,
+    )
+
+    assert [item.evidence_id for item in strategy.ranked_evidence[:3]] == [
+        "ev_project_mid",
+        "ev_internship",
+        "ev_skill_high",
+    ]
+
+
 def _requirement(requirement_id: str) -> JDRequirement:
     return JDRequirement(
         requirement_id=requirement_id,
@@ -76,13 +131,19 @@ def _requirement(requirement_id: str) -> JDRequirement:
     )
 
 
-def _evidence(evidence_id: str, requirement_id: str, score: float) -> EvidenceItem:
+def _evidence(
+    evidence_id: str,
+    requirement_id: str,
+    score: float,
+    section_type: str = "project",
+) -> EvidenceItem:
     return EvidenceItem(
         evidence_id=evidence_id,
         requirement_id=requirement_id,
         chunk_id=f"chunk_{evidence_id}",
         source_name="resume.md",
         section_label="Projects",
+        section_type=section_type,
         snippet="Built Python FastAPI services.",
         score=score,
     )

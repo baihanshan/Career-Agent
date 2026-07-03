@@ -58,11 +58,11 @@ Frontend
 
 - `document_id: string`
 - `source_name: string`
-- `source_type: "text" | "markdown" | "pdf"`
+- `source_type: "text" | "markdown"`
 - `content: string`
 - `created_at: string`
 
-MVP 先支持 `text` 和 `markdown`。`pdf` 可以保留 schema 类型，但实际解析放在后续阶段实现；第一版如果收到 `pdf` 类型，应返回明确的 unsupported file type 错误，而不是尝试不完整解析。
+Sprint 2 的 PDF 上传使用独立解析接口先将文件转换为文本。`POST /analysis` 仍只接收 `text` 和 `markdown`，避免把二进制文件处理与分析工作流耦合。
 
 ### 4.2 ProfileChunk
 
@@ -234,7 +234,7 @@ Response:
 - `profile_documents` 至少包含一项。
 - `job_description` 不能为空。
 - 单个文档内容为空时返回 validation error。
-- 不支持的 `source_type` 返回 validation error。MVP 中 `pdf` 也按暂不支持处理，直到 PDF parsing 模块实现并通过测试。
+- 不支持的 `source_type` 返回 validation error。PDF 文件必须先通过 PDF 解析接口转换为文本，再进入分析接口。
 - MVP 对超长输入先返回 warning 或截断策略，由 document processing 模块执行。
 
 ### 5.4 API 可测试点
@@ -696,9 +696,9 @@ MVP 使用单页应用结构：
 
 - 粘贴个人材料。
 - 粘贴 JD。
-- 后续扩展上传 Markdown、PDF 文件。
+- 上传文字型 PDF，并将解析结果回填到个人材料文本框。
 
-MVP 若先实现文本输入，也应保持数据结构与 file upload 兼容。
+PDF 上传和分析提交是两个独立动作；用户可以在提交分析前检查和编辑提取文本。
 
 ### 13.3 结果展示
 
@@ -888,6 +888,7 @@ MVP 完成时应满足：
 - 社交分享功能。
 - 高级简历排版编辑器。
 - 多语言简历自动转换。
+- 扫描件 PDF OCR。
 
 这些能力可以在核心 evidence-grounded workflow 稳定后再设计。
 
@@ -895,7 +896,7 @@ MVP 完成时应满足：
 
 MVP 稳定后可以考虑：
 
-- PDF parsing 和简历结构识别。
+- 扫描件 PDF OCR 和版面感知解析。
 - LangSmith 或 Ragas 评估集成。
 - 多 JD 对比分析。
 - GitHub repository 自动总结。
@@ -904,3 +905,108 @@ MVP 稳定后可以考虑：
 - 部署到云端并提供 demo 环境。
 
 扩展时仍应保持同一原则：新模块通过明确接口接入，不破坏现有核心工作流的可测试性。
+
+## 20. Sprint 2 PDF 简历上传详细设计
+
+### 20.1 范围与约束
+
+第一版只支持单个文字型 PDF，文件大小上限为 10 MB。扫描件、图片型 PDF、OCR、多文件合并、文件持久化和拖拽上传不在本次范围内。
+
+后端解析过程只使用请求内存中的文件内容。请求完成后不保留原始 PDF，解析文本由前端回填到现有输入框，用户确认或编辑后再提交分析。
+
+### 20.2 组件边界
+
+新增组件及职责：
+
+- `frontend/components/ProfileInput.tsx`：选择 PDF、展示上传状态和解析错误、将成功结果回填文本框。
+- `frontend/lib/api.ts`：使用 `multipart/form-data` 调用 PDF 解析接口。
+- `backend/app/api/routes.py`：接收上传文件，执行类型和大小校验，映射受控错误响应。
+- `backend/app/documents/pdf_parser.py`：从 PDF 字节中提取逐页文本并规范化，不处理 HTTP 或工作流逻辑。
+- `backend/app/documents/chunker.py`：识别 Markdown 标题和纯文本独立标题，生成结构化 section metadata。
+
+PDF 解析不进入 LangGraph。只有用户确认后的文本才通过现有 `POST /analysis` 进入 workflow。
+
+### 20.3 API 设计
+
+新增 endpoint：
+
+```text
+POST /documents/parse-pdf
+Content-Type: multipart/form-data
+field: file
+```
+
+成功响应：
+
+```json
+{
+  "source_name": "resume.pdf",
+  "page_count": 2,
+  "text": "叶飞\n教育经历\n..."
+}
+```
+
+校验规则：
+
+- 文件名扩展名必须为 `.pdf`，并校验上传内容类型。
+- 文件不得为空，且不得超过 10 MB。
+- PDF 必须可读取且未被密码保护。
+- 所有页面完成提取和规范化后，文本不能为空。
+
+受控错误码：
+
+- `PDF_INVALID_TYPE`：不是 PDF。
+- `PDF_TOO_LARGE`：超过 10 MB。
+- `PDF_EMPTY`：文件为空。
+- `PDF_ENCRYPTED`：PDF 需要密码。
+- `PDF_CORRUPT`：文件损坏或无法解析。
+- `PDF_NO_TEXT`：未提取到文字，提示用户使用文字型 PDF 或粘贴文本。
+
+### 20.4 文本提取与规范化
+
+后端使用 `pypdf` 逐页提取文字。页面之间保留一个空行；统一 `CRLF/CR` 为 `LF`，移除行尾多余空白，将三个以上连续空行压缩为两个空行。解析器不尝试猜测或改写简历内容。
+
+解析结果只代表 PDF 的文字层。若 PDF 的视觉顺序与内部文字顺序不一致，用户可以在回填后的文本框中修正。
+
+### 20.5 纯文本简历结构识别
+
+纯文本和没有 Markdown `#` 标记的粘贴内容都需要识别独立标题行。支持的标题至少包括：
+
+- 中文：`教育经历`、`教育背景`、`项目经历`、`项目经验`、`实习经历`、`工作经历`、`技能`、`专业技能`、`奖项`、`荣誉奖项`、`其他`。
+- 英文：`Education`、`Projects`、`Project Experience`、`Internship`、`Experience`、`Work Experience`、`Skills`、`Awards`、`Other`。
+
+只有整行匹配标题词时才切换 section，避免把“参与项目经历复盘”等正文误识别为标题。`project` 和 `internship` section 继续保留较完整上下文，再按最大长度安全切分。
+
+上传 PDF 后，前端提交分析时使用：
+
+```json
+{
+  "source_name": "resume.pdf",
+  "source_type": "text",
+  "content": "用户确认后的提取文本"
+}
+```
+
+### 20.6 前端交互
+
+“个人材料”区域保留原有文本框，并增加“上传 PDF”文件选择控件。
+
+交互规则：
+
+1. 选择文件后立即开始解析，显示“正在解析 PDF…”。
+2. 解析成功后用提取文本替换文本框内容，并显示文件名和页数。
+3. 只有解析成功才覆盖文本框；失败时保留原内容。
+4. 上传或解析期间禁用重复上传，但不阻止用户查看其他输入。
+5. 用户仍需点击“开始分析”，PDF 解析成功不自动触发分析。
+
+### 20.7 测试设计
+
+后端单元测试覆盖：
+
+- 多页文字型 PDF 能返回页数和规范文本。
+- 空白 PDF 返回 `PDF_NO_TEXT`。
+- 加密、损坏、空文件、非 PDF 和超过 10 MB 文件返回对应错误。
+- 纯文本独立中文和英文标题能映射到正确 section。
+- 正文中包含标题关键词时不会误切分。
+
+API 测试覆盖 multipart 上传、成功响应 schema 和受控错误码。前端检查覆盖文件控件、解析中状态、成功回填、失败保留原文本和错误文案。完整回归测试需要确认现有粘贴文本和 Markdown 输入仍能正常分析。

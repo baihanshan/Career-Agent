@@ -16,6 +16,29 @@ from backend.app.llm.prompts import (
 from backend.app.llm.structured_outputs import LLMOutputParseError
 
 
+@pytest.mark.parametrize(
+    "client",
+    [
+        OpenAIResponsesClient(
+            api_key="test-key",
+            model="gpt-test",
+            temperature=0.2,
+        ),
+        OpenAICompatibleChatClient(
+            api_key="test-key",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com",
+            temperature=0.2,
+        ),
+    ],
+)
+def test_default_llm_clients_allow_slow_provider_responses(client):
+    try:
+        assert client.http_client.timeout.read == 180
+    finally:
+        client.http_client.close()
+
+
 def test_fake_client_extracts_sample_jd_requirements():
     service = LLMService(
         client=FakeLLMClient(
@@ -44,8 +67,118 @@ def test_fake_client_extracts_sample_jd_requirements():
             text="Build Python APIs",
             importance="high",
             keywords=["Python", "API"],
+            capability_tags=["programming"],
+            verification_mode="technical_question",
+            interviewability=True,
+            question_focus=(
+                "applied technical decisions, alternatives, validation, "
+                "and engineering trade-offs"
+            ),
         )
     ]
+
+
+def test_degree_requirement_defaults_to_non_interviewable_document_check():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_degree",
+                  "category": "qualification",
+                  "text": "计算机相关专业硕士或博士学历",
+                  "importance": "high",
+                  "keywords": ["计算机", "硕士", "博士"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("计算机相关专业硕士或博士学历")[0]
+
+    assert requirement.verification_mode == "document_check"
+    assert requirement.interviewability is False
+    assert requirement.question_focus is None
+
+
+def test_programming_and_algorithm_requirement_gets_technical_semantics():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_programming",
+                  "category": "hard_skill",
+                  "text": "具备扎实的编程基础（Python/C++/Java），熟悉常用算法与数据结构",
+                  "importance": "high",
+                  "keywords": ["Python", "C++", "Java", "算法", "数据结构"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("需要编程、算法与数据结构能力")[0]
+
+    assert requirement.verification_mode == "technical_question"
+    assert requirement.interviewability is True
+    assert {"programming", "algorithms"}.issubset(requirement.capability_tags)
+    assert requirement.question_focus
+
+
+def test_multimodal_platform_responsibility_gets_system_design_focus():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_platform",
+                  "category": "responsibility",
+                  "text": "设计并开发多模态平台，建立模型效果评估体系",
+                  "importance": "high",
+                  "keywords": ["多模态", "平台", "评估"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("设计多模态平台和评估体系")[0]
+
+    assert requirement.verification_mode == "system_design"
+    assert requirement.interviewability is True
+    assert {"multimodal", "platform", "evaluation"}.issubset(
+        requirement.capability_tags
+    )
+    assert all(
+        term in requirement.question_focus.lower()
+        for term in ("platform", "design", "evaluation")
+    )
+
+
+def test_at_least_one_domain_requirement_preserves_or_alternatives():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                [{
+                  "requirement_id": "req_domain",
+                  "category": "hard_skill",
+                  "text": "了解 NLP/多模态至少一个领域",
+                  "importance": "high",
+                  "keywords": ["NLP", "多模态"]
+                }]
+                """
+            }
+        )
+    )
+
+    requirement = service.extract_jd_requirements("了解 NLP/多模态至少一个领域")[0]
+
+    assert requirement.logical_operator == "OR"
+    assert requirement.alternatives == ["NLP", "多模态"]
+    assert {"nlp", "multimodal"}.issubset(requirement.capability_tags)
 
 
 def test_malformed_requirements_json_raises_parse_error():
@@ -166,6 +299,13 @@ def test_extract_jd_requirements_normalizes_common_model_schema_variants():
         text="Python backend development",
         importance="high",
         keywords=["Python", "Backend"],
+        capability_tags=["programming"],
+        verification_mode="technical_question",
+        interviewability=True,
+        question_focus=(
+            "applied technical decisions, alternatives, validation, "
+            "and engineering trade-offs"
+        ),
     )
     assert requirements[1] == JDRequirement(
         requirement_id="req_2",
@@ -173,7 +313,61 @@ def test_extract_jd_requirements_normalizes_common_model_schema_variants():
         text="Strong communication with product stakeholders",
         importance="medium",
         keywords=[],
+        capability_tags=["communication"],
     )
+
+
+def test_extract_jd_requirements_accepts_nested_analysis_wrapper_and_mandatory_priority():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "extract_jd_requirements": """
+                {
+                  "jd_analysis": {
+                    "requirements": [
+                      {
+                        "id": "req_backend",
+                        "kind": "must_have",
+                        "requirement_text": "Must have Python backend API experience",
+                        "priority": "mandatory",
+                        "keywords": "Python, API"
+                      }
+                    ]
+                  }
+                }
+                """
+            }
+        )
+    )
+
+    requirements = service.extract_jd_requirements("Must have Python backend API experience.")
+
+    assert requirements == [
+        JDRequirement(
+            requirement_id="req_backend",
+            category="hard_skill",
+            text="Must have Python backend API experience",
+                importance="high",
+                keywords=["Python", "API"],
+                capability_tags=["programming"],
+                verification_mode="technical_question",
+                interviewability=True,
+                question_focus=(
+                    "applied technical decisions, alternatives, validation, "
+                    "and engineering trade-offs"
+                ),
+        )
+    ]
+
+
+def test_jd_prompt_defines_user_readable_text_and_importance_criteria():
+    prompt = JD_REQUIREMENTS_PROMPT.lower()
+
+    assert "user-readable" in prompt
+    assert "high importance" in prompt
+    assert "medium importance" in prompt
+    assert "low importance" in prompt
+    assert "internal" in prompt
 
 
 def test_application_assets_json_parses_to_generated_assets():
@@ -191,12 +385,6 @@ def test_application_assets_json_parses_to_generated_assets():
                       "risk_level": "low"
                     }
                   ],
-                  "cover_letter": {
-                    "opening": "I am excited about the API role.",
-                    "body": ["My Python API project aligns with your backend needs."],
-                    "closing": "Thank you for your consideration.",
-                    "evidence_ids": ["ev_python"]
-                  },
                   "interview_prep": [
                     {
                       "topic": "Python API project",
@@ -220,7 +408,8 @@ def test_application_assets_json_parses_to_generated_assets():
     )
 
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
-    assert assets.cover_letter.evidence_ids == ["ev_python"]
+    assert len(assets.resume_bullets) == 3
+    assert "cover_letter" not in assets.model_dump()
 
 
 def test_application_assets_normalizes_common_model_schema_variants():
@@ -238,7 +427,6 @@ def test_application_assets_normalizes_common_model_schema_variants():
                         "evidence_id": "ev_python"
                       }
                     ],
-                    "cover_letter": "I am excited to apply because my API project matches the role.",
                     "interview_questions": [
                       "Explain the FastAPI project architecture."
                     ]
@@ -270,10 +458,44 @@ def test_application_assets_normalizes_common_model_schema_variants():
     assert assets.resume_bullets[0].text == "Built FastAPI services for a project."
     assert assets.resume_bullets[0].target_requirement_ids == ["req_python"]
     assert assets.resume_bullets[0].evidence_ids == ["ev_python"]
-    assert assets.cover_letter.body == [
-        "I am excited to apply because my API project matches the role."
-    ]
-    assert assets.interview_prep[0].prep_suggestion == "Explain the FastAPI project architecture."
+    assert len(assets.resume_bullets) == 3
+    assert (
+        assets.interview_prep.jd_questions[0].sample_answer
+        == "Explain the FastAPI project architecture."
+    )
+
+
+def test_application_asset_normalization_does_not_infer_ids_from_text_or_fill_blank_ids():
+    service = LLMService(
+        client=FakeLLMClient(
+            responses={
+                "generate_application_assets": """
+                {
+                  "match_summary": "Relevant project evidence exists.",
+                  "resume_bullets": [{
+                    "text": "Built an API. (evidence_ids: [\\"ev_python\\"])",
+                    "target_requirement_ids": ["req_python"],
+                    "evidence_ids": [""],
+                    "risk_level": "low"
+                  }],
+                  "interview_prep": {"jd_questions": [], "resume_deep_dive_questions": []}
+                }
+                """
+            }
+        )
+    )
+
+    assets = service.generate_application_assets(
+        context={
+            "requirements": [_requirement().model_dump()],
+            "evidence": [_evidence().model_dump()],
+            "match_analysis": [],
+            "evidence_ids": ["ev_python"],
+        }
+    )
+
+    assert assets.resume_bullets[0].evidence_ids == [""]
+    assert "evidence_ids" in assets.resume_bullets[0].text
 
 
 def test_grounding_evaluation_json_parses_to_evaluation_report():

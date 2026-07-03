@@ -48,7 +48,7 @@ def test_fake_generated_assets_match_schema():
     assets = load_fake_llm_generated_assets()
 
     assert isinstance(assets, GeneratedAssets)
-    assert assets.resume_bullets[0].evidence_ids == ["req_python_api:evidence:1"]
+    assert assets.resume_bullets[0].evidence_ids == ["req_python_api:evidence:2"]
 
 
 def test_complete_workflow_fixture_produces_evidence_bullet_and_evaluation():
@@ -57,9 +57,10 @@ def test_complete_workflow_fixture_produces_evidence_bullet_and_evaluation():
     response = run_workflow(request=request, services=_fixture_services())
 
     assert response.status == "completed"
-    assert len(response.result["evidence_table"]) >= 1
+    assert "evidence_table" not in response.result
     assert len(response.result["generated_assets"]["resume_bullets"]) >= 1
-    assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"]
+    assert "evidence_ids" not in response.result["generated_assets"]["resume_bullets"][0]
+    assert response.result["agent_traces"][0]["agent_name"] == "resume_evidence"
     assert response.result["evaluation_report"]["overall_status"] in {
         "pass",
         "pass_with_warnings",

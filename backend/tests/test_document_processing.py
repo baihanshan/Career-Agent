@@ -81,3 +81,162 @@ def test_chunk_output_order_is_stable():
         chunk.model_dump() for chunk in second_run
     ]
     assert [chunk.text for chunk in first_run] == ["Alpha.", "Beta.", "Gamma."]
+
+
+def test_chinese_project_heading_creates_project_section_metadata():
+    document = ProfileDocument(
+        document_id="doc_project",
+        source_name="resume.md",
+        source_type="markdown",
+        content=(
+            "## 项目经历\n\n"
+            "CareerPilot Agent：构建基于 LangGraph 的求职分析系统。\n"
+            "技术栈：FastAPI、LangGraph、Chroma。\n"
+            "结果：提升简历证据检索质量。"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert len(chunks) == 1
+    assert chunks[0].section_type == "project"
+    assert chunks[0].section_title == "项目经历"
+    assert chunks[0].project_name == "CareerPilot Agent"
+    assert chunks[0].technologies == ["FastAPI", "LangGraph", "Chroma"]
+    assert "结果：提升简历证据检索质量。" in chunks[0].text
+
+
+def test_english_experience_heading_creates_internship_section_metadata():
+    document = ProfileDocument(
+        document_id="doc_internship",
+        source_name="resume.md",
+        source_type="markdown",
+        content=(
+            "## Experience\n\n"
+            "Company: Acme AI\n"
+            "Role: Machine Learning Intern\n"
+            "Built an evaluation dashboard for retrieval quality.\n"
+            "Tech Stack: Python, FastAPI, React"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert len(chunks) == 1
+    assert chunks[0].section_type == "internship"
+    assert chunks[0].company_name == "Acme AI"
+    assert chunks[0].role_title == "Machine Learning Intern"
+    assert chunks[0].technologies == ["Python", "FastAPI", "React"]
+
+
+def test_skills_heading_is_not_misclassified_as_project_or_internship():
+    document = ProfileDocument(
+        document_id="doc_skills",
+        source_name="resume.md",
+        source_type="markdown",
+        content="## 技能\n\nPython、FastAPI、LangGraph、Chroma。",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert chunks[0].section_type == "skill"
+    assert chunks[0].project_name is None
+    assert chunks[0].company_name is None
+
+
+def test_plain_text_standalone_resume_headings_create_sections():
+    document = ProfileDocument(
+        document_id="doc_plain_resume",
+        source_name="resume.pdf",
+        source_type="text",
+        content=(
+            "教育经历\nUNSW 人工智能硕士\n"
+            "项目经历\n语义分割项目\n"
+            "实习经历\n腾讯人工智能实习生\n"
+            "技能\nPython、PyTorch\n"
+            "奖项\n校级奖学金"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+    sections = {chunk.section_title: chunk.section_type for chunk in chunks}
+
+    assert sections == {
+        "教育经历": "education",
+        "项目经历": "project",
+        "实习经历": "internship",
+        "技能": "skill",
+        "奖项": "other",
+    }
+
+
+def test_markdown_source_accepts_unprefixed_resume_headings():
+    document = ProfileDocument(
+        document_id="doc_pasted_resume",
+        source_name="profile.md",
+        source_type="markdown",
+        content="项目经历\n模型项目\n实习经历\n人工智能实习生",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert [chunk.section_type for chunk in chunks] == ["project", "internship"]
+
+
+def test_plain_text_english_resume_headings_create_sections():
+    document = ProfileDocument(
+        document_id="doc_english_resume",
+        source_name="resume.pdf",
+        source_type="text",
+        content="Education\nMSc AI\nProjects\nClassifier\nWork Experience\nAI Intern\nSkills\nPython",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert [chunk.section_type for chunk in chunks] == [
+        "education",
+        "project",
+        "internship",
+        "skill",
+    ]
+
+
+def test_heading_keyword_inside_body_does_not_split_section():
+    document = ProfileDocument(
+        document_id="doc_no_false_heading",
+        source_name="resume.txt",
+        source_type="text",
+        content="项目经历\n完成模型训练，并参与项目经历复盘。",
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert len(chunks) == 1
+    assert chunks[0].section_type == "project"
+    assert "参与项目经历复盘" in chunks[0].text
+
+
+def test_continuous_project_headers_create_independent_retrieval_chunks():
+    document = ProfileDocument(
+        document_id="doc_three_projects",
+        source_name="resume.txt",
+        source_type="text",
+        content=(
+            "项目经历\n"
+            "项目负责人 语义分割 2024 年 2 月 - 2024 年 6 月\n"
+            "项目介绍：解决目标边界模糊问题。\n"
+            "项目负责人 客户反馈分类 2025 年 1 月 - 2025 年 5 月\n"
+            "项目介绍：将反馈映射至产品部门。\n"
+            "Scrum Master 隐性性别歧视识别 2025 年 5 月 - 2025 年 8 月\n"
+            "项目介绍：构建多智能体与 RAG 系统。"
+        ),
+    )
+
+    chunks = chunk_profile_document(document)
+
+    assert [chunk.project_name for chunk in chunks] == [
+        "语义分割",
+        "客户反馈分类",
+        "隐性性别歧视识别",
+    ]
+    assert all(chunk.section_type == "project" for chunk in chunks)

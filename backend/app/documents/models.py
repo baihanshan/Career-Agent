@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 SupportedProfileSourceType = Literal["text", "markdown"]
+ProfileSectionType = Literal["internship", "project", "skill", "education", "other"]
 
 
 def _new_id(prefix: str) -> str:
@@ -35,6 +36,12 @@ class ProfileChunk(BaseModel):
     document_id: str
     source_name: str
     section_label: str | None = None
+    section_type: ProfileSectionType = "other"
+    section_title: str | None = None
+    company_name: str | None = None
+    role_title: str | None = None
+    project_name: str | None = None
+    technologies: list[str] = Field(default_factory=list)
     text: str
     start_char: int | None = Field(default=None, ge=0)
     end_char: int | None = Field(default=None, ge=0)

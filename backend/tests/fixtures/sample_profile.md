@@ -8,6 +8,10 @@ Master of Science in Artificial Intelligence with coursework in machine learning
 
 Built a Python API development project using FastAPI to expose an evidence-grounded career analysis workflow. The project included document chunking, fake embeddings, retrieval, structured job requirement extraction, match scoring, and grounding evaluation.
 
+## Internship
+
+AI Engineering Intern at Acme Labs. Collaborated with product and frontend partners to build a FastAPI document analysis service, added retrieval evaluation tests, and delivered an evidence review dashboard used in weekly product reviews.
+
 ## Skills
 
 Python, FastAPI, Pydantic, TypeScript, React, Next.js, retrieval augmented generation, vector search, testing, and API design.

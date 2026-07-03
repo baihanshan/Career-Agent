@@ -1,5 +1,7 @@
 # Sprint 2 Resume Evidence ReAct Agent 任务
 
+状态：已完成
+
 ## 目标
 
 用 LangGraph `create_react_agent` 实现 Resume Evidence Agent，使其能多轮检索并优先找到项目和实习证据。
@@ -20,15 +22,14 @@
 
 ## 最小任务清单
 
-- [ ] 创建 Resume Evidence Agent 模块。
-- [ ] 使用 LangGraph `create_react_agent` 组装 agent。
-- [ ] 只暴露 `search_resume_evidence`、`get_resume_section`、`rerank_evidence` 三个工具。
-- [ ] 设置最大迭代轮数为 3。
-- [ ] prompt 明确要求 project/internship 优先，skill 仅辅助。
-- [ ] prompt 明确如果结果只有 skill，需要继续查项目/实习。
-- [ ] 输出结构化 evidence items。
-- [ ] 记录 agent trace。
-- [ ] 编写测试：技能命中后继续检索项目。
-- [ ] 编写测试：项目证据排序高于技能证据。
-- [ ] 编写测试：3 轮失败后 workflow 返回失败。
-
+- [x] 创建 Resume Evidence Agent 模块。
+- [x] 使用 LangGraph `create_react_agent` 组装 agent。
+- [x] 只暴露 `search_resume_evidence`、`get_resume_section`、`rerank_evidence` 三个工具。
+- [x] 设置最大迭代轮数为 3。
+- [x] prompt 明确要求 project/internship 优先，skill 仅辅助。
+- [x] prompt 明确如果结果只有 skill，需要继续查项目/实习。
+- [x] 输出结构化 evidence items。
+- [x] 记录 agent trace。
+- [x] 编写测试：技能命中后继续检索项目。
+- [x] 编写测试：项目证据排序高于技能证据。
+- [x] 编写测试：3 轮失败后 workflow 返回失败。

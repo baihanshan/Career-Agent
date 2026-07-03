@@ -1,5 +1,7 @@
 # Sprint 2 Error Handling 与 Observability 任务
 
+状态：已完成
+
 ## 目标
 
 实现质量优先错误策略：关键 ReAct Agent 失败时终止分析，前端展示友好提示，后台保留具体失败原因和 trace。
@@ -20,12 +22,11 @@
 
 ## 最小任务清单
 
-- [ ] 新增 Agent 失败错误 code。
-- [ ] 新增 collection cleanup 失败 warning。
-- [ ] 将内部 agent failure 转换为用户友好 message。
-- [ ] 在后台日志记录 agent 名称、工具名、错误摘要。
-- [ ] 确保 API response 不包含 API key、完整 prompt 或隐藏推理。
-- [ ] 编写测试：前端错误 message 不含技术栈堆栈。
-- [ ] 编写测试：后台日志包含 agent 名称。
-- [ ] 编写测试：关键 Agent 失败时不会返回 partial result。
-
+- [x] 新增 Agent 失败错误 code。
+- [x] 新增 collection cleanup 失败 warning。
+- [x] 将内部 agent failure 转换为用户友好 message。
+- [x] 在后台日志记录 agent 名称、工具名、错误摘要。
+- [x] 确保 API response 不包含 API key、完整 prompt 或隐藏推理。
+- [x] 编写测试：前端错误 message 不含技术栈堆栈。
+- [x] 编写测试：后台日志包含 agent 名称。
+- [x] 编写测试：关键 Agent 失败时不会返回 partial result。

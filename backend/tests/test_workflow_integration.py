@@ -8,6 +8,7 @@ from backend.app.retrieval.service import RetrievalService
 from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import WORKFLOW_NODE_ORDER, build_analysis_graph, run_workflow
 from backend.app.workflow.nodes import WorkflowServices
+from backend.app.workflow.react_tools import REACT_AGENT_TOOL_ALLOWLIST
 from backend.app.workflow.service import _default_services
 
 
@@ -15,11 +16,13 @@ def test_workflow_graph_defines_expected_node_order():
     assert WORKFLOW_NODE_ORDER == [
         "parse_inputs",
         "index_profile",
-        "analyze_jd",
-        "retrieve_evidence",
-        "score_match",
-        "write_application",
-        "evaluate_grounding",
+        "jd_analyst",
+        "resume_evidence_agent",
+        "match_strategist",
+        "resume_bullet_agent",
+        "interview_prep_agent",
+        "risk_auditor_agent",
+        "public_output_gate",
         "finalize_response",
     ]
 
@@ -28,15 +31,55 @@ def test_sample_profile_and_jd_run_to_final_response():
     response = run_workflow(request=_request(), services=_services())
 
     assert response.status == "completed"
-    assert response.result["jd_requirements"][0]["requirement_id"] == "req_python"
-    assert response.result["evidence_table"][0]["chunk_id"] == "doc_resume:chunk:1"
+    assert response.result["jd_requirements"][0]["text"] == "Python API development"
+    assert "requirement_id" not in response.result["jd_requirements"][0]
+    assert "evidence_table" not in response.result
     assert response.result["match_analysis"][0]["match_level"] == "strong"
-    assert response.result["generated_assets"]["resume_bullets"][0]["evidence_ids"]
+    assert "evidence_ids" not in response.result["generated_assets"]["resume_bullets"][0]
     assert response.result["evaluation_report"]["overall_status"] in {
         "pass",
         "pass_with_warnings",
         "fail",
     }
+
+
+def test_workflow_services_inject_same_react_model_into_all_three_agents():
+    model = object()
+    services = WorkflowServices(
+        retrieval_service=RetrievalService(
+            embedding_client=FakeEmbeddingClient(),
+            vector_store=InMemoryVectorStore(),
+        ),
+        llm_service=LLMService(client=_StaticLLMClient()),
+        react_model=model,
+    )
+
+    assert services.resume_evidence_agent.model is model
+    assert services.interview_prep_agent.model is model
+    assert services.risk_auditor_agent.model is model
+
+
+def test_graph_traces_contain_real_allowlisted_tool_calls_for_all_agents():
+    response = run_workflow(request=_request(), services=_services())
+
+    traces = {item["agent_name"]: item for item in response.result["agent_traces"]}
+    assert set(traces) == {"resume_evidence", "interview_prep", "risk_auditor"}
+    for agent_name, trace in traces.items():
+        assert trace["steps"]
+        assert all(
+            step["tool_name"] in REACT_AGENT_TOOL_ALLOWLIST[agent_name]
+            for step in trace["steps"]
+        )
+        assert all(step["attempt_number"] >= 1 for step in trace["steps"])
+
+
+def test_run_workflow_cleans_retrieval_collection_after_analysis():
+    services = _services()
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.status == "completed"
+    assert services.retrieval_service.vector_store.items == []
 
 
 def test_build_analysis_graph_returns_compiled_langgraph():
@@ -54,8 +97,8 @@ def test_run_analysis_service_uses_workflow_result():
 
     assert response["status"] == "completed"
     assert response["result"]["jd_requirements"]
-    assert response["result"]["evidence_table"]
-    assert response["result"]["generated_assets"]["resume_bullets"][0]["evidence_ids"]
+    assert "evidence_table" not in response["result"]
+    assert "evidence_ids" not in response["result"]["generated_assets"]["resume_bullets"][0]
 
 
 def test_run_analysis_service_returns_chinese_generated_content():
@@ -68,12 +111,10 @@ def test_run_analysis_service_returns_chinese_generated_content():
     generated_texts = [
         assets["match_summary"],
         assets["resume_bullets"][0]["text"],
-        assets["cover_letter"]["opening"],
-        assets["cover_letter"]["body"][0],
-        assets["cover_letter"]["closing"],
-        assets["interview_prep"][0]["topic"],
-        assets["interview_prep"][0]["why_it_matters"],
-        assets["interview_prep"][0]["prep_suggestion"],
+        assets["interview_prep"]["jd_questions"][0]["question"],
+        assets["interview_prep"]["jd_questions"][0]["sample_answer"],
+        assets["interview_prep"]["resume_deep_dive_questions"][0]["question"],
+        assets["interview_prep"]["resume_deep_dive_questions"][0]["sample_answer"],
         report["risk_summary"],
     ]
 
@@ -177,18 +218,13 @@ class _StaticLLMClient:
                 "match_summary": "Strong fit for Python API work.",
                 "resume_bullets": [
                     {
-                        "text": "Built Python APIs backed by project evidence.",
+                        "text": f"Built Python APIs backed by project evidence {index}.",
                         "target_requirement_ids": ["req_python"],
                         "evidence_ids": ["req_python:evidence:1"],
                         "risk_level": "low",
                     }
+                    for index in range(1, 4)
                 ],
-                "cover_letter": {
-                    "opening": "I am excited to apply.",
-                    "body": ["My Python API project aligns with the role."],
-                    "closing": "Thank you for your consideration.",
-                    "evidence_ids": ["req_python:evidence:1"],
-                },
                 "interview_prep": [
                     {
                         "topic": "Python API project",

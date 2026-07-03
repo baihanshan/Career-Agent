@@ -1,34 +1,87 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from uuid import uuid4
 
-from backend.app.api.schemas import AnalysisRequest, AnalysisResponse
+import httpx
+
+from backend.app.api.schemas import (
+    AnalysisRequest,
+    AnalysisResponse,
+    PublicAnalysisResult,
+)
 from backend.app.core.errors import (
     AppError,
     DocumentProcessingErrorCode,
     LLMErrorCode,
     ProcessingWarning,
+    ReActErrorCode,
     VectorStoreErrorCode,
     WorkflowErrorCode,
 )
 from backend.app.documents.chunker import chunk_profile_document
+from backend.app.documents.experience_parser import parse_experience_records
 from backend.app.evaluation.evaluator import evaluate_generated_assets
+from backend.app.evaluation.quality_gate import PublicOutputQualityGate
 from backend.app.llm.client import LLMService
 from backend.app.llm.structured_outputs import LLMOutputParseError
 from backend.app.retrieval.service import RetrievalService
-from backend.app.workflow.match_scoring import score_matches
+from backend.app.workflow.match_scoring import build_match_strategy, score_matches
+from backend.app.workflow.public_output import (
+    PublicOutputValidationError,
+    project_public_result,
+)
+from backend.app.workflow.interview_prep_agent import (
+    InterviewPrepAgent,
+    InterviewPrepAgentError,
+)
+from backend.app.workflow.resume_evidence_agent import (
+    ResumeEvidenceAgent,
+    ResumeEvidenceAgentError,
+)
+from backend.app.workflow.risk_auditor_agent import (
+    RiskAuditorAgent,
+    RiskAuditorAgentError,
+)
 from backend.app.workflow.state import AnalysisState
 from backend.app.workflow.writer import write_application as generate_application
 
 
 SHORT_PROFILE_CONTENT_CHARS = 40
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class WorkflowServices:
     retrieval_service: RetrievalService
     llm_service: LLMService
+    react_model: object | None = None
+    resume_evidence_agent: ResumeEvidenceAgent | None = None
+    interview_prep_agent: InterviewPrepAgent | None = None
+    risk_auditor_agent: RiskAuditorAgent | None = None
+    quality_gate: PublicOutputQualityGate = field(
+        default_factory=PublicOutputQualityGate
+    )
+    public_projector: Callable[[AnalysisState], PublicAnalysisResult] = (
+        project_public_result
+    )
+
+    def __post_init__(self) -> None:
+        self.resume_evidence_agent = self.resume_evidence_agent or ResumeEvidenceAgent(
+            model=self.react_model
+        )
+        self.interview_prep_agent = self.interview_prep_agent or InterviewPrepAgent(
+            model=self.react_model
+        )
+        self.risk_auditor_agent = self.risk_auditor_agent or RiskAuditorAgent(
+            model=self.react_model
+        )
+        self.resume_evidence_agent.quality_gate = self.quality_gate
+        self.interview_prep_agent.quality_gate = self.quality_gate
+        self.risk_auditor_agent.quality_gate = self.quality_gate
 
 
 def parse_inputs(request: AnalysisRequest) -> AnalysisState:
@@ -52,10 +105,23 @@ def index_profile(state: AnalysisState, services: WorkflowServices) -> AnalysisS
             for document in state.profile_documents
             for chunk in chunk_profile_document(document)
         ]
+        experience_records = [
+            record
+            for document in state.profile_documents
+            for record in parse_experience_records(
+                document,
+                [
+                    chunk
+                    for chunk in profile_chunks
+                    if chunk.document_id == document.document_id
+                ],
+            )
+        ]
         profile_index_id = services.retrieval_service.index_profile(profile_chunks)
         return state.model_copy(
             update={
                 "profile_chunks": profile_chunks,
+                "experience_records": experience_records,
                 "profile_index_id": profile_index_id,
                 "processing_warnings": processing_warnings,
             }
@@ -72,35 +138,84 @@ def analyze_jd(state: AnalysisState, services: WorkflowServices) -> AnalysisStat
     try:
         jd_requirements = _extract_jd_requirements_with_retry(state, services)
         return state.model_copy(update={"jd_requirements": jd_requirements})
-    except LLMOutputParseError:
+    except LLMOutputParseError as exc:
+        _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
         return _append_error(
             state,
             LLMErrorCode.LLM_OUTPUT_PARSE_ERROR.value,
             "Job description could not be parsed into structured requirements.",
         )
+    except httpx.TimeoutException as exc:
+        _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
+        return _append_error(
+            state,
+            LLMErrorCode.LLM_PROVIDER_TIMEOUT.value,
+            "The model provider timed out.",
+        )
+    except Exception as exc:
+        _log_agent_failure("jd_analyst", exc, state, "extract_jd_requirements")
+        return _append_error(
+            state,
+            WorkflowErrorCode.JD_ANALYST_ERROR.value,
+            "Job description analysis failed. Please try again.",
+            details={"reason": str(exc)},
+        )
 
 
 def retrieve_evidence(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
     try:
-        evidence = services.retrieval_service.retrieve_evidence(
-            requirements=state.jd_requirements,
-            top_k=state.run_config.top_k,
+        return services.resume_evidence_agent.run(state, services.retrieval_service)
+    except ResumeEvidenceAgentError as exc:
+        _log_agent_failure(
+            "resume_evidence_agent", exc, state, "search_resume_evidence"
         )
-        return state.model_copy(update={"retrieved_evidence": evidence})
-    except Exception:
+        error_code = _react_error_code(
+            exc,
+            WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
+        )
         return _append_error(
             state,
-            WorkflowErrorCode.RETRIEVAL_ERROR.value,
+            error_code,
+            _react_error_message(
+                error_code,
+                "Could not find usable resume evidence for this JD.",
+            ),
+            details={"reason": str(exc)},
+        )
+    except Exception as exc:
+        _log_agent_failure(
+            "resume_evidence_agent", exc, state, "search_resume_evidence"
+        )
+        return _append_error(
+            state,
+            WorkflowErrorCode.RESUME_EVIDENCE_AGENT_ERROR.value,
             "Evidence retrieval failed. Please try again.",
+            details={"reason": str(exc)},
         )
 
 
 def score_match(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
-    match_analysis = score_matches(
-        requirements=state.jd_requirements,
-        evidence_items=state.retrieved_evidence,
-    )
-    return state.model_copy(update={"match_analysis": match_analysis})
+    try:
+        match_analysis = score_matches(
+            requirements=state.jd_requirements,
+            evidence_items=state.retrieved_evidence,
+        )
+        match_strategy = build_match_strategy(
+            requirements=state.jd_requirements,
+            evidence_items=state.retrieved_evidence,
+            match_items=match_analysis,
+        )
+        return state.model_copy(
+            update={"match_analysis": match_analysis, "match_strategy": match_strategy}
+        )
+    except Exception as exc:
+        _log_agent_failure("match_strategist", exc, state, "score_matches")
+        return _append_error(
+            state,
+            WorkflowErrorCode.MATCH_STRATEGIST_ERROR.value,
+            "Match strategy could not be generated safely.",
+            details={"reason": str(exc)},
+        )
 
 
 def write_application(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
@@ -109,14 +224,51 @@ def write_application(state: AnalysisState, services: WorkflowServices) -> Analy
             requirements=state.jd_requirements,
             evidence_items=state.retrieved_evidence,
             match_items=state.match_analysis,
+            evidence_selections=state.evidence_selections,
+            allowed_evidence_ids=state.allowed_evidence_ids,
             llm_service=services.llm_service,
         )
         return state.model_copy(update={"generated_assets": generated_assets})
-    except Exception:
+    except Exception as exc:
+        _log_agent_failure(
+            "resume_bullet_agent", exc, state, "generate_application_assets"
+        )
         return _append_error(
             state,
-            WorkflowErrorCode.WRITER_ERROR.value,
+            WorkflowErrorCode.RESUME_BULLET_AGENT_ERROR.value,
             "Application assets could not be generated safely.",
+            details={"reason": str(exc)},
+        )
+
+
+def generate_interview_prep(
+    state: AnalysisState,
+    services: WorkflowServices,
+) -> AnalysisState:
+    try:
+        return services.interview_prep_agent.run(state)
+    except InterviewPrepAgentError as exc:
+        _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")
+        error_code = _react_error_code(
+            exc,
+            WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
+        )
+        return _append_error(
+            state,
+            error_code,
+            _react_error_message(
+                error_code,
+                "Interview preparation could not be generated safely.",
+            ),
+            details={"reason": str(exc)},
+        )
+    except Exception as exc:
+        _log_agent_failure("interview_prep_agent", exc, state, "draft_answer")
+        return _append_error(
+            state,
+            WorkflowErrorCode.INTERVIEW_PREP_AGENT_ERROR.value,
+            "Interview preparation could not be generated safely.",
+            details={"reason": str(exc)},
         )
 
 
@@ -135,50 +287,94 @@ def evaluate_grounding(state: AnalysisState, services: WorkflowServices) -> Anal
             llm_service=services.llm_service,
         )
         return state.model_copy(update={"evaluation_report": evaluation_report})
-    except Exception:
+    except Exception as exc:
+        _log_agent_failure(
+            "risk_auditor_agent", exc, state, "check_generated_claim_grounding"
+        )
         return _append_error(
             state,
-            WorkflowErrorCode.EVALUATION_ERROR.value,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
             "Generated assets could not be evaluated.",
+            details={"reason": str(exc)},
+        )
+
+
+def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisState:
+    try:
+        return services.risk_auditor_agent.run(state)
+    except RiskAuditorAgentError as exc:
+        _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")
+        error_code = _react_error_code(
+            exc,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
+        )
+        return _append_error(
+            state,
+            error_code,
+            _react_error_message(
+                error_code,
+                "Risk audit could not be completed safely.",
+            ),
+            details={"reason": str(exc)},
+        )
+    except Exception as exc:
+        _log_agent_failure("risk_auditor_agent", exc, state, "rank_top_risks")
+        return _append_error(
+            state,
+            WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
+            "Risk audit could not be completed safely.",
+            details={"reason": str(exc)},
+        )
+
+
+def public_output_gate(
+    state: AnalysisState,
+    services: WorkflowServices,
+) -> AnalysisState:
+    if state.errors:
+        return state
+    try:
+        public_result = services.public_projector(state)
+        return state.model_copy(update={"public_result": public_result})
+    except PublicOutputValidationError as exc:
+        _log_agent_failure("public_output_gate", exc, state, "public_projection")
+        return _append_error(
+            state,
+            "INTERNAL_ID_LEAK",
+            "Generated output contained an internal reference and was not displayed.",
+        )
+    except Exception as exc:
+        _log_agent_failure("public_output_gate", exc, state, "public_projection")
+        return _append_error(
+            state,
+            WorkflowErrorCode.PUBLIC_OUTPUT_GATE_ERROR.value,
+            "Generated output could not be validated for display.",
         )
 
 
 def finalize_response(state: AnalysisState) -> AnalysisResponse:
     if state.errors:
+        error = state.errors[0]
         return AnalysisResponse(
             analysis_id=state.analysis_id,
             status="failed",
-            error=state.errors[0].model_dump(mode="json"),
+            error={"code": error.code, "message": error.message},
+        )
+
+    if state.public_result is None:
+        return AnalysisResponse(
+            analysis_id=state.analysis_id,
+            status="failed",
+            error={
+                "code": WorkflowErrorCode.PUBLIC_OUTPUT_GATE_ERROR.value,
+                "message": "Generated output was not validated for display.",
+            },
         )
 
     return AnalysisResponse(
         analysis_id=state.analysis_id,
         status="completed",
-        result={
-            "profile_chunks": [item.model_dump(mode="json") for item in state.profile_chunks],
-            "jd_requirements": [
-                item.model_dump(mode="json") for item in state.jd_requirements
-            ],
-            "evidence_table": [
-                item.model_dump(mode="json") for item in state.retrieved_evidence
-            ],
-            "match_analysis": [
-                item.model_dump(mode="json") for item in state.match_analysis
-            ],
-            "generated_assets": (
-                state.generated_assets.model_dump(mode="json")
-                if state.generated_assets is not None
-                else None
-            ),
-            "evaluation_report": (
-                state.evaluation_report.model_dump(mode="json")
-                if state.evaluation_report is not None
-                else None
-            ),
-            "processing_warnings": [
-                warning.model_dump(mode="json") for warning in state.processing_warnings
-            ],
-        },
+        result=state.public_result.model_dump(mode="json"),
     )
 
 
@@ -192,10 +388,73 @@ def _extract_jd_requirements_with_retry(
         return services.llm_service.extract_jd_requirements(state.job_description)
 
 
-def _append_error(state: AnalysisState, code: str, message: str) -> AnalysisState:
+def _append_error(
+    state: AnalysisState,
+    code: str,
+    message: str,
+    details: dict | None = None,
+) -> AnalysisState:
     return state.model_copy(
-        update={"errors": [*state.errors, AppError(code=code, message=message)]}
+        update={"errors": [*state.errors, AppError(code=code, message=message, details=details)]}
     )
+
+
+def _log_agent_failure(
+    agent_name: str,
+    exc: Exception,
+    state: AnalysisState,
+    fallback_tool: str,
+) -> None:
+    failed_tool = getattr(exc, "failed_tool", fallback_tool)
+    trace_summary = getattr(exc, "trace_summary", "steps=0 tools=none statuses=none")
+    reason = _safe_log_text(str(exc), state)
+    logger.error(
+        "agent=%s tool=%s reason=%s trace_summary=%s",
+        agent_name,
+        failed_tool,
+        reason,
+        _safe_log_text(trace_summary, state),
+    )
+
+
+def _safe_log_text(value: str, state: AnalysisState, limit: int = 480) -> str:
+    sanitized = value.replace("SYSTEM_PROMPT_SECRET", "[redacted]")
+    if state.run_config.api_key:
+        sanitized = sanitized.replace(state.run_config.api_key, "[redacted]")
+    for document in state.profile_documents:
+        if document.content:
+            sanitized = sanitized.replace(document.content, "[resume redacted]")
+    sanitized = re.sub(
+        r"(?i)hidden\s+(?:chain[- ]of[- ]thought|reasoning)",
+        "[reasoning redacted]",
+        sanitized,
+    )
+    sanitized = " ".join(sanitized.split())
+    return sanitized[:limit]
+
+
+def _react_error_code(exc: Exception, fallback: str) -> str:
+    code = getattr(exc, "code", None)
+    controlled_codes = {item.value for item in ReActErrorCode}
+    return code if code in controlled_codes else fallback
+
+
+def _react_error_message(code: str, fallback: str) -> str:
+    messages = {
+        ReActErrorCode.REACT_TOOL_CALL_ERROR.value: (
+            "The model could not complete a required tool call."
+        ),
+        ReActErrorCode.REACT_RECURSION_LIMIT_ERROR.value: (
+            "The model used too many evidence-search steps before producing a final answer."
+        ),
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value: (
+            "The model did not return valid structured output."
+        ),
+        ReActErrorCode.REACT_EVIDENCE_VIOLATION.value: (
+            "The model referenced evidence that was not available."
+        ),
+    }
+    return messages.get(code, fallback)
 
 
 def _warnings_for_document(document) -> list[ProcessingWarning]:
