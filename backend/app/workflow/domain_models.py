@@ -174,6 +174,8 @@ class InternalRiskItem(BaseModel):
     risk_reason: str
     recommendation: str
     severity: str
+    risk_dimension: str | None = None
+    risk_priority: int = Field(default=0, ge=0, le=100)
     requirement_ids: list[str] = Field(default_factory=list)
     internal_supporting_evidence_ids: list[str] = Field(default_factory=list)
 

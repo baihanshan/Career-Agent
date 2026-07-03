@@ -484,9 +484,41 @@ def _rank_candidate_risks(
     limit: int,
 ) -> StructuredToolResult:
     severity = {"high": 3, "medium": 2, "low": 1}
+    dimension_score = {
+        "core_technical_direction": 100,
+        "missing_required_technology": 95,
+        "algorithm_model_system_architecture": 90,
+        "project_depth": 85,
+        "engineering_implementation": 80,
+        "data_modeling": 75,
+        "scale_distributed_deployment_stability": 70,
+        "quantified_outcomes": 65,
+        "requirement_analysis": 100,
+        "business_user_scenario_understanding": 95,
+        "product_project_ownership": 90,
+        "zero_to_one_or_scale_delivery": 85,
+        "cross_functional_delivery": 75,
+        "business_outcome_metrics": 70,
+        "personal_contribution_clarity": 65,
+        "generic_soft_skill": 10,
+    }
+
+    def priority(item: dict[str, Any]) -> int:
+        try:
+            return int(item.get("risk_priority", 0))
+        except (TypeError, ValueError):
+            return 0
+
     ranked = sorted(
         risks,
-        key=lambda item: severity.get(str(item.get("severity", "")).casefold(), 0),
+        key=lambda item: (
+            severity.get(str(item.get("severity", "")).casefold(), 0),
+            priority(item),
+            dimension_score.get(
+                str(item.get("risk_dimension", "")).casefold(),
+                0,
+            ),
+        ),
         reverse=True,
     )[:limit]
     return _success({"risks": ranked}, f"Ranked {len(ranked)} candidate risk(s).")

@@ -38,6 +38,26 @@ resume coverage (whether the full resume contains relevant evidence), evidence s
 generated bullets selected the requirement). Missing bullet coverage alone is never an
 ability gap.
 
+Before proposing risks, classify the role type from the JD and requirement catalog. Use
+the risk_audit_policy payload to decide which screening dimensions are truly core for
+that role type. Do not mechanically audit every JD sentence. Think like a real recruiter,
+business interviewer, or technical interviewer: focus on the gaps most likely to affect
+screening, interview depth, or hiring confidence.
+
+For technical R&D roles, prioritize core technical direction, missing required technology
+experience, project depth, engineering implementation, algorithm/model/system/architecture
+ability, data processing, performance optimization, deployment, stability, scale, and
+quantified outcomes. For product or project management roles, prioritize requirement
+analysis, user/business scenario understanding, product or project ownership, delivery
+from 0 to 1 or 1 to N, cross-functional coordination, data/competitive/user-feedback
+analysis, growth/conversion/business metrics, personal contribution, and business impact.
+
+Generic soft skills such as learning ability, adaptability, communication, teamwork,
+passion, pressure tolerance, responsibility, independent thinking, and retrospection are
+low-priority by default. Only output a soft-skill risk when it is a true core screening
+criterion for this role, is not already indirectly shown by projects, internships, team
+delivery, or outcomes, and would realistically affect resume screening or interviews.
+
 Use the structured requirement, evidence, experience, capability-semantic, numeric,
 public-claim-grounding, bullet-coverage, and risk-ranking tools before returning output.
 Treat strong direct or indirect support as covered. Multiple projects may jointly prove a
@@ -52,14 +72,85 @@ must never appear in user-visible text.
 
 Return only JSON with a top-level risks list. Each risk contains risk_type, title,
 jd_requirement_summary, resume_current_state, risk_reason, recommendation, severity,
-requirement_ids, and internal_supporting_evidence_ids. Do not return markdown or hidden
-reasoning.
+risk_dimension, risk_priority, requirement_ids, and internal_supporting_evidence_ids.
+Use risk_priority from 0 to 100, where core role risks should be much higher than generic
+soft-skill concerns. Do not return markdown or hidden reasoning.
 JSON example:
-{"risks":[{"risk_type":"证据不足","title":"核心要求缺少足够项目细节","jd_requirement_summary":"JD asks for applied machine learning experience.","resume_current_state":"The resume mentions related work but lacks method and evaluation details.","risk_reason":"The current evidence is relevant but not strong enough to prove the requirement.","recommendation":"Add model choice, dataset, evaluation metric, and your personal contribution.","severity":"medium","requirement_ids":["req_example"],"internal_supporting_evidence_ids":["ev_example"]}]}
+{"risks":[{"risk_type":"证据不足","title":"核心要求缺少足够项目细节","jd_requirement_summary":"JD asks for applied machine learning experience.","resume_current_state":"The resume mentions related work but lacks method and evaluation details.","risk_reason":"The current evidence is relevant but not strong enough to prove the requirement.","recommendation":"Add model choice, dataset, evaluation metric, and your personal contribution.","severity":"medium","risk_dimension":"project_depth","risk_priority":80,"requirement_ids":["req_example"],"internal_supporting_evidence_ids":["ev_example"]}]}
 """.strip()
 
 
 _SEVERITY_SCORE = {"high": 3, "medium": 2, "low": 1}
+_RISK_DIMENSION_SCORE = {
+    "core_technical_direction": 100,
+    "missing_required_technology": 95,
+    "algorithm_model_system_architecture": 90,
+    "project_depth": 85,
+    "engineering_implementation": 80,
+    "data_modeling": 75,
+    "scale_distributed_deployment_stability": 70,
+    "quantified_outcomes": 65,
+    "requirement_analysis": 100,
+    "business_user_scenario_understanding": 95,
+    "product_project_ownership": 90,
+    "zero_to_one_or_scale_delivery": 85,
+    "cross_functional_delivery": 75,
+    "business_outcome_metrics": 70,
+    "personal_contribution_clarity": 65,
+    "generic_soft_skill": 10,
+}
+
+_RISK_AUDIT_POLICY = {
+    "required_first_step": "classify_role_type",
+    "role_type_options": [
+        "technical_r_and_d",
+        "product_project_management",
+        "business_analysis_or_solution",
+        "other",
+    ],
+    "role_priority_dimensions": {
+        "technical_r_and_d": [
+            "core_technical_direction",
+            "missing_required_technology",
+            "algorithm_model_system_architecture",
+            "project_depth",
+            "engineering_implementation",
+            "data_modeling",
+            "scale_distributed_deployment_stability",
+            "quantified_outcomes",
+            "generic_soft_skill",
+        ],
+        "product_project_management": [
+            "requirement_analysis",
+            "business_user_scenario_understanding",
+            "product_project_ownership",
+            "zero_to_one_or_scale_delivery",
+            "cross_functional_delivery",
+            "business_outcome_metrics",
+            "personal_contribution_clarity",
+            "generic_soft_skill",
+        ],
+    },
+    "soft_skill_rule": {
+        "default_priority": "low",
+        "soft_skill_examples": [
+            "learning_ability",
+            "adaptability",
+            "communication",
+            "teamwork",
+            "passion",
+            "pressure_tolerance",
+            "responsibility",
+            "independent_thinking",
+            "retrospection",
+        ],
+        "only_surface_when": [
+            "the role treats it as a core screening criterion",
+            "projects, internships, team delivery, or outcomes do not indirectly prove it",
+            "the gap would realistically affect resume screening or interviews",
+        ],
+    },
+}
 
 
 class RiskAuditorAgentError(AgentExecutionError):
@@ -150,6 +241,7 @@ class RiskAuditorAgent:
                 continue
 
             all_steps.extend(recorder.steps)
+            _normalize_internal_supporting_evidence_ids(tool_state, report)
             last_issues = _validate_report(
                 state=tool_state,
                 report=report,
@@ -204,10 +296,17 @@ def create_risk_auditor_react_agent(model, tools):
 
 def _invocation_prompt(state: AnalysisState, retry_feedback: str) -> str:
     payload = {
+        "risk_audit_policy": _RISK_AUDIT_POLICY,
+        "job_description_excerpt": state.job_description[:1200],
         "requirement_catalog": [
             {
                 "requirement_id": item.requirement_id,
+                "category": item.category,
+                "text": item.text,
                 "importance": item.importance,
+                "capability_tags": item.capability_tags,
+                "verification_mode": item.verification_mode,
+                "interviewability": item.interviewability,
                 "logical_operator": item.logical_operator,
                 "alternatives": item.alternatives,
             }
@@ -243,7 +342,7 @@ def _invocation_prompt(state: AnalysisState, retry_feedback: str) -> str:
 def _parse_final_report(result: dict[str, Any]) -> InternalRiskReport:
     structured = result.get("structured_response")
     if structured is not None:
-        return InternalRiskReport.model_validate(structured)
+        return InternalRiskReport.model_validate(_coerce_risk_report_payload(structured))
     messages = result.get("messages") or []
     content = next(
         (
@@ -257,7 +356,114 @@ def _parse_final_report(result: dict[str, Any]) -> InternalRiskReport:
     if not isinstance(content, str):
         raise ValueError("Final Agent message must contain JSON text.")
     payload = parse_json_payload_from_text(content)
-    return InternalRiskReport.model_validate(payload)
+    return InternalRiskReport.model_validate(_coerce_risk_report_payload(payload))
+
+
+def _coerce_risk_report_payload(payload: Any) -> dict[str, Any]:
+    if isinstance(payload, InternalRiskReport):
+        return payload.model_dump(mode="json")
+    if isinstance(payload, list):
+        return {"risks": [_coerce_risk_item(item) for item in payload]}
+    if not isinstance(payload, dict):
+        return payload
+
+    risks = _extract_risks(payload)
+    if risks is None:
+        return payload
+    return {"risks": [_coerce_risk_item(item) for item in risks]}
+
+
+def _extract_risks(payload: dict[str, Any]) -> Any:
+    if "risks" in payload:
+        return payload["risks"]
+    for key in ("risk_report", "report", "result", "output"):
+        value = payload.get(key)
+        if isinstance(value, dict) and "risks" in value:
+            return value["risks"]
+    return None
+
+
+def _coerce_risk_item(item: Any) -> Any:
+    if not isinstance(item, dict):
+        return item
+    coerced = dict(item)
+    coerced["severity"] = _coerce_severity(coerced.get("severity", "medium"))
+    coerced["risk_priority"] = _coerce_risk_priority(
+        coerced.get("risk_priority", coerced.get("priority", 0))
+    )
+    for key in ("requirement_ids", "internal_supporting_evidence_ids"):
+        coerced[key] = _coerce_string_list(coerced.get(key, []))
+    return coerced
+
+
+def _coerce_severity(value: Any) -> str:
+    normalized = str(value).strip().casefold()
+    mapping = {
+        "高": "high",
+        "高风险": "high",
+        "high": "high",
+        "中": "medium",
+        "中风险": "medium",
+        "medium": "medium",
+        "med": "medium",
+        "低": "low",
+        "低风险": "low",
+        "low": "low",
+    }
+    return mapping.get(normalized, "medium")
+
+
+def _coerce_risk_priority(value: Any) -> int:
+    if isinstance(value, int):
+        return max(0, min(value, 100))
+    try:
+        return max(0, min(int(str(value).strip()), 100))
+    except ValueError:
+        mapping = {
+            "critical": 95,
+            "核心": 90,
+            "high": 80,
+            "高": 80,
+            "medium": 50,
+            "中": 50,
+            "low": 20,
+            "低": 20,
+        }
+        return mapping.get(str(value).strip().casefold(), 0)
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item).strip()]
+    return [str(value)] if str(value).strip() else []
+
+
+def _normalize_internal_supporting_evidence_ids(
+    state: AnalysisState,
+    report: InternalRiskReport,
+) -> None:
+    evidence_by_requirement: dict[str, list[str]] = {}
+    for item in state.retrieved_evidence:
+        if item.evidence_id not in state.allowed_evidence_ids:
+            continue
+        evidence_by_requirement.setdefault(item.requirement_id, []).append(item.evidence_id)
+
+    for risk in report.risks:
+        valid_ids = [
+            evidence_id
+            for evidence_id in dict.fromkeys(risk.internal_supporting_evidence_ids)
+            if evidence_id in state.allowed_evidence_ids
+        ]
+        if not valid_ids:
+            candidates: list[str] = []
+            for requirement_id in risk.requirement_ids:
+                candidates.extend(evidence_by_requirement.get(requirement_id, []))
+            valid_ids = list(dict.fromkeys(candidates))[:3]
+        risk.internal_supporting_evidence_ids = valid_ids
 
 
 def _validate_report(
@@ -393,6 +599,8 @@ def _normalize_report(
         report.risks,
         key=lambda risk: (
             _SEVERITY_SCORE[risk.severity],
+            risk.risk_priority,
+            _RISK_DIMENSION_SCORE.get((risk.risk_dimension or "").casefold(), 0),
             max((importance.get(item, 0) for item in risk.requirement_ids), default=0),
         ),
         reverse=True,

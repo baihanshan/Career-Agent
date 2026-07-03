@@ -267,6 +267,24 @@ def test_unknown_supporting_evidence_ids_are_normalized_from_target_requirement(
     assert question.supporting_evidence_ids == ["ev_project"]
 
 
+def test_missing_internal_question_ids_are_normalized_from_allowed_evidence():
+    output = _fixture("python_professional")
+    output["jd_questions"][0]["target_requirement_ids"] = []
+    output["jd_questions"][0]["supporting_evidence_ids"] = ["ev_unknown"]
+    model = _fake_model([_tool_calls(), _final(output)])
+    state = _state(
+        requirements=[_requirement("req_python", "Python 与算法基础")],
+        evidence=[_evidence("ev_project", "req_python")],
+        experiences=[_experience()],
+    )
+
+    result = InterviewPrepAgent(model=model, max_attempts=1).run(state)
+
+    question = result.internal_interview_prep.jd_questions[0]
+    assert question.target_requirement_ids == ["req_python"]
+    assert question.supporting_evidence_ids == ["ev_project"]
+
+
 def test_three_invalid_attempts_return_controlled_error():
     responses = []
     for _ in range(3):

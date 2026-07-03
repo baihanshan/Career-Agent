@@ -54,6 +54,7 @@ Now I have all the evidence needed. Let me compile the final selections. {"selec
   - 如果模型漏填或编造 ID，则根据 `target_requirement_ids` 选择同 requirement 的已允许 evidence；
   - 对 deep-dive question，再根据 `experience_id` 的 raw chunks 选择已允许 evidence；
   - 只会写入本轮工具已允许的真实 evidence id，不放行未知 ID。
+- 2026-07-01 后续补丁：真实 DeepSeek 日志确认失败阶段仍可能是 `agent=interview_prep_agent tool=quality_gate`。当模型漏填/错填 JD question 的 `target_requirement_ids`，且 `supporting_evidence_ids` 不在 allowlist 时，`_normalize_supporting_evidence_ids` 会从本轮 allowed evidence 回填 supporting evidence，并反推 interviewable requirement id，避免内部追踪字段导致 `REACT_EVIDENCE_VIOLATION`。
 
 ## 验证
 
@@ -64,6 +65,9 @@ conda run -n carrer_agent pytest -q backend/tests/test_interview_prep_agent.py::
 conda run -n carrer_agent pytest -q backend/tests/test_interview_prep_agent.py
 conda run -n carrer_agent pytest -q backend/tests/test_resume_evidence_agent.py backend/tests/test_interview_prep_agent.py backend/tests/test_risk_auditor_agent.py
 env RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
+RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q backend/tests/test_interview_prep_agent.py
+RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q backend/tests/test_resume_evidence_agent.py backend/tests/test_interview_prep_agent.py backend/tests/test_risk_auditor_agent.py backend/tests/test_public_output.py
+RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
 ```
 
 结果：全部通过。完整后端测试仅保留既有 `StarletteDeprecationWarning`。

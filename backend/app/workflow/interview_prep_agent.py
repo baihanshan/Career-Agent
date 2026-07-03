@@ -52,8 +52,15 @@ competencies_tested, target_requirement_ids, answer_plan, direct_answer, selecte
 reasoning_or_tradeoffs, result, reflection_or_transfer, sample_answer,
 supporting_evidence_ids, and experience_id.
 
-JD questions must be realistic professional technical, system-design, or behavioral scenarios.
-Include a concrete goal, input/output, constraint, failure mode, or trade-off as appropriate.
+JD questions and resume deep-dive questions serve different interview purposes. JD questions
+must be role-ability assessment questions: they are generated from the job direction, core
+responsibilities, required skills, business scenario, technical stack, constraints, or
+capability requirements. They should feel like on-the-spot interviewer prompts that test
+whether the candidate can analyze and solve target-role problems. Do not make jd_questions
+about a specific resume project, internship, paper, competition, employer, or experience.
+Do not start JD questions with phrases like "在某项目中", "结合你的项目", "你在某公司",
+or "请介绍某段经历". Include a concrete goal, input/output, constraint, failure mode, data
+condition, system boundary, user/business context, metric, or trade-off as appropriate.
 Never ask how the candidate "meets" or "satisfies" a JD requirement.
 Resume questions may identify an experience only by project name, company and role, or one
 short summary. Never paste the full resume snippet. Questions for the same experience must
@@ -62,6 +69,11 @@ test different competencies and focus areas.
 Create an answer_plan before every natural sample_answer. A plan contains direct_answer,
 selected_facts, reasoning_or_tradeoffs, result, and reflection_or_transfer. Reorganize facts
 to answer the question directly; do not copy a resume paragraph and append a generic summary.
+For JD questions, sample_answer should primarily answer the role scenario with a method,
+decision process, trade-offs, validation approach, and expected outcome. Resume evidence may
+be used as brief support in selected_facts or as a short closing connection, but it must not
+be the organizing frame of the answer. Put project-centered verification, personal
+contribution, and implementation-detail probing into resume_deep_dive_questions instead.
 Use only requirement, evidence, and experience IDs returned or supplied for the current
 invocation, and keep every ID exclusively in structured internal fields. Never show IDs in
 question or answer text.
@@ -71,7 +83,7 @@ question, question_type, competencies_tested, target_requirement_ids, answer_pla
 sample_answer, supporting_evidence_ids, and optional experience_id. Do not return markdown,
 hidden reasoning, or chain-of-thought.
 JSON example:
-{"jd_questions":[{"question":"如果系统需要在高并发约束下处理数据流，你会如何设计队列、缓存和故障恢复机制？","question_type":"system_design","competencies_tested":["architecture"],"target_requirement_ids":["req_example"],"answer_plan":{"direct_answer":"我会先拆分数据接入、任务调度和结果评估三个环节。","selected_facts":["相关项目中有可复用的工程事实。"],"reasoning_or_tradeoffs":"这样可以在延迟、可靠性和实现复杂度之间做权衡。","result":"方案可通过离线指标和压力测试验证。","reflection_or_transfer":"我会把同样的评估习惯迁移到目标岗位场景中。"},"sample_answer":"我会先澄清输入规模、成功指标和失败恢复要求，再选择可以逐步验证的架构，并用延迟、吞吐和错误恢复指标持续迭代。","supporting_evidence_ids":["ev_example"],"experience_id":"exp_example"}],"resume_deep_dive_questions":[]}
+{"jd_questions":[{"question":"如果目标岗位需要在高并发约束下处理数据流，你会如何设计队列、缓存和故障恢复机制，并验证延迟与吞吐是否达标？","question_type":"system_design","competencies_tested":["architecture","reliability"],"target_requirement_ids":["req_example"],"answer_plan":{"direct_answer":"我会先澄清输入规模、成功指标和失败恢复要求，再拆分数据接入、任务调度、缓存和结果评估。","selected_facts":["候选人有相关工程事实可支撑回答。"],"reasoning_or_tradeoffs":"核心权衡是吞吐、内存、延迟、幂等恢复和实现复杂度。","result":"方案应通过压测、故障注入和延迟分位数验证。","reflection_or_transfer":"如果目标岗位场景变化，我会先保持可观测性和回滚边界，再逐步优化架构。"},"sample_answer":"我会先确认输入规模、峰值 QPS、延迟目标和失败恢复要求，再把链路拆成接入、排队、处理、缓存和结果确认。队列侧设置背压和幂等键，缓存侧设置容量上限与淘汰策略，故障恢复侧用有界重试、死信队列和补偿任务。验证时我会看吞吐、P95/P99 延迟、失败重放成功率和资源占用，并通过压测与故障注入确认方案是否满足目标岗位场景。","supporting_evidence_ids":["ev_example"]}],"resume_deep_dive_questions":[]}
 """.strip()
 
 
@@ -227,12 +239,40 @@ def create_interview_prep_react_agent(model, tools):
 
 def _invocation_prompt(state: AnalysisState, retry_feedback: str) -> str:
     payload = {
+        "question_generation_policy": {
+            "jd_questions": {
+                "purpose": "role_ability_assessment",
+                "source": "job_direction_core_responsibilities_required_skills_business_or_technical_scenarios",
+                "avoid": [
+                    "specific_resume_project_follow_up",
+                    "internship_or_company_specific_follow_up",
+                    "paper_competition_or_experience_specific_follow_up",
+                    "asking_how_the_candidate_meets_the_jd",
+                ],
+                "expected_shape": [
+                    "scenario_or_case_prompt",
+                    "explicit_constraints_or_metrics",
+                    "tradeoff_or_failure_mode",
+                    "validation_or_decision_criteria",
+                ],
+            },
+            "resume_deep_dive_questions": {
+                "purpose": "resume_authenticity_depth_personal_contribution_verification",
+                "source": "structured_experience_records",
+            },
+        },
         "requirement_catalog": [
             {
                 "requirement_id": item.requirement_id,
+                "category": item.category,
+                "text": item.text,
+                "importance": item.importance,
+                "capability_tags": item.capability_tags,
                 "verification_mode": item.verification_mode,
                 "interviewability": item.interviewability,
                 "question_focus": item.question_focus,
+                "logical_operator": item.logical_operator,
+                "alternatives": item.alternatives,
             }
             for item in state.jd_requirements
         ],
@@ -337,15 +377,24 @@ def _normalize_supporting_evidence_ids(
     questions = [*prep.jd_questions, *prep.resume_deep_dive_questions]
     evidence_by_requirement: dict[str, list[str]] = defaultdict(list)
     evidence_by_chunk: dict[str, list[str]] = defaultdict(list)
+    requirement_by_evidence: dict[str, str] = {}
+    all_allowed_evidence_ids: list[str] = []
     for item in state.retrieved_evidence:
         if item.evidence_id not in state.allowed_evidence_ids:
             continue
+        all_allowed_evidence_ids.append(item.evidence_id)
+        requirement_by_evidence[item.evidence_id] = item.requirement_id
         evidence_by_requirement[item.requirement_id].append(item.evidence_id)
         evidence_by_chunk[item.chunk_id].append(item.evidence_id)
 
     experience_chunks: dict[str, set[str]] = {
         item.experience_id: set(item.raw_source_chunk_ids)
         for item in state.experience_records
+    }
+    interviewable_ids = {
+        item.requirement_id
+        for item in state.jd_requirements
+        if item.interviewability and item.verification_mode != "document_check"
     }
     for question in questions:
         valid_ids = [
@@ -360,7 +409,42 @@ def _normalize_supporting_evidence_ids(
                 evidence_by_chunk,
                 experience_chunks,
             )
+        if not valid_ids:
+            valid_ids = all_allowed_evidence_ids[:3]
         question.supporting_evidence_ids = valid_ids
+
+        inferred_requirement_ids = [
+            requirement_by_evidence[evidence_id]
+            for evidence_id in valid_ids
+            if evidence_id in requirement_by_evidence
+        ]
+        if question in prep.jd_questions:
+            valid_requirement_ids = [
+                requirement_id
+                for requirement_id in dict.fromkeys(question.target_requirement_ids)
+                if requirement_id in interviewable_ids
+            ]
+            if not valid_requirement_ids:
+                valid_requirement_ids = [
+                    requirement_id
+                    for requirement_id in dict.fromkeys(inferred_requirement_ids)
+                    if requirement_id in interviewable_ids
+                ]
+            question.target_requirement_ids = valid_requirement_ids[:3]
+        else:
+            all_requirement_ids = {item.requirement_id for item in state.jd_requirements}
+            valid_requirement_ids = [
+                requirement_id
+                for requirement_id in dict.fromkeys(question.target_requirement_ids)
+                if requirement_id in all_requirement_ids
+            ]
+            if not valid_requirement_ids:
+                valid_requirement_ids = [
+                    requirement_id
+                    for requirement_id in dict.fromkeys(inferred_requirement_ids)
+                    if requirement_id in all_requirement_ids
+                ]
+            question.target_requirement_ids = valid_requirement_ids[:3]
 
 
 def _fallback_evidence_ids(
@@ -416,6 +500,18 @@ def _validate_prep(
                     "NON_INTERVIEWABLE_REQUIREMENT",
                     f"{path}.target_requirement_ids",
                     "Use only interviewable non-document-check requirements for JD questions.",
+                )
+            )
+        if _mentions_resume_experience(item.question, state):
+            issues.append(
+                _quality_issue(
+                    "JD_QUESTION_USES_RESUME_EXPERIENCE",
+                    f"{path}.question",
+                    (
+                        "Rewrite JD questions as role-ability assessment scenarios. "
+                        "Move project, internship, company, paper, competition, or "
+                        "experience-specific follow-up into resume_deep_dive_questions."
+                    ),
                 )
             )
 
@@ -536,6 +632,43 @@ def _validate_prep(
             )
         )
     return sorted(issues, key=lambda issue: (issue.field_path, issue.code))
+
+
+def _mentions_resume_experience(question: str, state: AnalysisState) -> bool:
+    normalized_question = _normalize_for_match(question)
+    if not normalized_question:
+        return False
+
+    generic_resume_followup_markers = [
+        "结合你的项目",
+        "结合你项目",
+        "在你的项目中",
+        "你在项目中",
+        "在你负责的",
+        "在你的实习",
+        "你在实习中",
+        "在你的论文",
+        "在你的比赛",
+        "请介绍你",
+        "请讲讲你",
+    ]
+    if any(
+        _normalize_for_match(marker) in normalized_question
+        for marker in generic_resume_followup_markers
+    ):
+        return True
+
+    experience_names = [
+        value
+        for item in state.experience_records
+        for value in (item.name, item.company_name, item.role_title)
+        if value and len(_normalize_for_match(value)) >= 3
+    ]
+    return any(_normalize_for_match(value) in normalized_question for value in experience_names)
+
+
+def _normalize_for_match(value: str) -> str:
+    return "".join(character.casefold() for character in value if character.isalnum())
 
 
 def _duplicate_focus_issues(

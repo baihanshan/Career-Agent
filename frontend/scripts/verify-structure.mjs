@@ -107,6 +107,14 @@ if (
 }
 
 if (
+  resultView.includes('trace.steps.map((step) =>') ||
+  resultView.includes('key={`${step.tool_name}-${step.arguments_summary}`}')
+) {
+  console.error("Agent trace step keys must include the step index to avoid duplicate React keys.");
+  process.exit(1);
+}
+
+if (
   riskWarnings.includes('key={`${risk.risk_type}-${risk.title}`}') ||
   !riskWarnings.includes(
     'key={`${risk.risk_type}-${risk.title}-${risk.jd_requirement_summary}`}'

@@ -28,7 +28,9 @@ from backend.app.workflow.risk_auditor_agent import (
     RiskAuditorAgent,
     RiskAuditorAgentError,
     create_risk_auditor_react_agent,
+    _parse_final_report,
 )
+from backend.app.workflow.react_tools import _rank_candidate_risks
 from backend.app.workflow.state import AnalysisState
 
 
@@ -146,7 +148,7 @@ def test_internal_evidence_ids_are_allowlisted_and_removed_from_public_risk():
     assert response.result["risk_report"]["risks"][0]["title"] == "工程规模证据仍不充分"
 
 
-@pytest.mark.parametrize("invalid_fixture", ["unknown_evidence", "leaked_id"])
+@pytest.mark.parametrize("invalid_fixture", ["leaked_id"])
 def test_unknown_evidence_or_visible_id_gets_feedback_retry(invalid_fixture):
     model = _fake_model(
         [
@@ -168,6 +170,22 @@ def test_unknown_evidence_or_visible_id_gets_feedback_retry(invalid_fixture):
     feedback = retry_prompts[0].split("Previous output failed validation.", 1)[1]
     assert "ev_unknown" not in feedback
     assert "req_python" not in feedback
+
+
+def test_unknown_internal_risk_evidence_id_is_normalized_from_requirement_evidence():
+    model = _fake_model(
+        [_inspection_calls("req_python"), _final(_fixture("unknown_evidence"))]
+    )
+    state = _state(
+        selections=[_selection("req_python", ["ev_project"], "weak", ["insufficient"])],
+    )
+
+    result = RiskAuditorAgent(model=model).run(state)
+
+    assert len(model.invocations) == 2
+    assert result.internal_risk_report.risks[0].internal_supporting_evidence_ids == [
+        "ev_project"
+    ]
 
 
 def test_three_invalid_attempts_return_controlled_error():
@@ -240,6 +258,114 @@ def test_factory_uses_langchain_create_agent(monkeypatch):
 def test_prompt_contains_explicit_json_example_for_json_mode_providers():
     assert "json example" in RISK_AUDITOR_AGENT_PROMPT.lower()
     assert '"risks"' in RISK_AUDITOR_AGENT_PROMPT
+
+
+def test_risk_auditor_prompt_and_invocation_include_role_aware_policy():
+    model = _fake_model([_inspection_calls("req_python"), _final({"risks": []})])
+
+    RiskAuditorAgent(model=model).run(_state())
+
+    first_prompt = next(
+        message.content
+        for message in model.invocations[0]
+        if getattr(message, "type", "") == "human"
+    )
+    payload = json.loads(first_prompt.split(":\n", 1)[1])
+    policy = payload["risk_audit_policy"]
+
+    assert "role type" in RISK_AUDITOR_AGENT_PROMPT.lower()
+    assert policy["required_first_step"] == "classify_role_type"
+    assert policy["soft_skill_rule"]["default_priority"] == "low"
+    assert "core_technical_direction" in policy["role_priority_dimensions"]["technical_r_and_d"]
+    assert "business_outcome_metrics" in policy["role_priority_dimensions"]["product_project_management"]
+
+
+def test_rank_candidate_risks_prioritizes_core_role_risks_over_generic_soft_skills():
+    result = _rank_candidate_risks(
+        [
+            {
+                "risk_type": "证据不足",
+                "title": "沟通与团队协同缺少直接例证",
+                "severity": "high",
+                "risk_dimension": "generic_soft_skill",
+                "risk_priority": 10,
+            },
+            {
+                "risk_type": "JD 未覆盖",
+                "title": "核心机器学习建模经验没有体现",
+                "severity": "high",
+                "risk_dimension": "core_technical_direction",
+                "risk_priority": 90,
+            },
+        ],
+        limit=2,
+    )
+
+    assert result.data["risks"][0]["title"] == "核心机器学习建模经验没有体现"
+    assert result.data["risks"][1]["title"] == "沟通与团队协同缺少直接例证"
+
+
+def test_parse_final_report_accepts_role_analysis_wrapped_risk_report_payload():
+    report = _parse_final_report(
+        {
+            "messages": [
+                _final(
+                    {
+                        "role_type": "technical_r_and_d",
+                        "risk_report": {
+                            "risks": [
+                                {
+                                    "risk_type": "证据不足",
+                                    "title": "核心技术深度不足",
+                                    "jd_requirement_summary": "岗位要求机器学习建模经验",
+                                    "resume_current_state": "简历项目相关，但方法和评估较少。",
+                                    "risk_reason": "缺少模型选择、评估指标和个人贡献细节。",
+                                    "recommendation": "补充模型、数据、指标和个人负责部分。",
+                                    "severity": "中",
+                                    "risk_dimension": "project_depth",
+                                    "risk_priority": "high",
+                                    "requirement_ids": "req_python",
+                                    "internal_supporting_evidence_ids": "ev_project",
+                                }
+                            ]
+                        },
+                    }
+                )
+            ]
+        }
+    )
+
+    risk = report.risks[0]
+    assert risk.severity == "medium"
+    assert risk.risk_priority == 80
+    assert risk.requirement_ids == ["req_python"]
+    assert risk.internal_supporting_evidence_ids == ["ev_project"]
+
+
+def test_parse_final_report_accepts_bare_risk_array_payload():
+    report = _parse_final_report(
+        {
+            "messages": [
+                _final(
+                    [
+                        {
+                            "risk_type": "证据不足",
+                            "title": "核心技术深度不足",
+                            "jd_requirement_summary": "岗位要求机器学习建模经验",
+                            "resume_current_state": "简历项目相关，但方法和评估较少。",
+                            "risk_reason": "缺少模型选择、评估指标和个人贡献细节。",
+                            "recommendation": "补充模型、数据、指标和个人负责部分。",
+                            "severity": "medium",
+                            "requirement_ids": ["req_python"],
+                            "internal_supporting_evidence_ids": ["ev_project"],
+                        }
+                    ]
+                )
+            ]
+        }
+    )
+
+    assert len(report.risks) == 1
 
 
 class _ToolCallingFakeModel(FakeMessagesListChatModel):

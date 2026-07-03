@@ -84,11 +84,14 @@ function AgentTraceDetails({ traces }: { traces: AnalysisResult["agent_traces"] 
     <details className="panel">
       <summary>分析过程详情</summary>
       <div className="prep-list">
-        {traces.map((trace) => (
-          <article className="prep-item" key={`${trace.agent_name}-${trace.final_decision_summary}`}>
+        {traces.map((trace, traceIndex) => (
+          <article
+            className="prep-item"
+            key={`${trace.agent_name}-${traceIndex}-${trace.final_decision_summary}`}
+          >
             <h3>{trace.agent_name}</h3>
-            {trace.steps.map((step) => (
-              <p key={`${step.tool_name}-${step.arguments_summary}`}>
+            {trace.steps.map((step, stepIndex) => (
+              <p key={`${step.tool_name}-${stepIndex}-${step.arguments_summary}`}>
                 {step.tool_name}：{step.arguments_summary} → {step.return_summary}
               </p>
             ))}
