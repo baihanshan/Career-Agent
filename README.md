@@ -2,22 +2,109 @@
 
 **Language:** [English](README.md) | [简体中文](README.zh-CN.md)
 
-CareerPilot Agent is an evidence-grounded, agentic job application assistant for Chinese-speaking job seekers. It turns user-provided career materials and a target job description into structured job requirements, match analysis, resume bullets, interview preparation, and role-aware risk warnings.
+CareerPilot Agent is a local AI assistant for job seekers. Give it your resume or career notes plus a target job description, and it helps you understand how well you match the role, which resume bullets to emphasize, what interview questions to prepare for, and where your application may look weak.
 
-The project is built as a portfolio-ready LLM application: FastAPI and Pydantic provide the backend API contract, LangGraph orchestrates a fixed workflow, selected workflow stages use tool-calling ReAct agents, retrieval grounds outputs in user evidence, and a Chinese Next.js frontend exposes the end-to-end workflow.
+This project currently runs as a local web app. It is useful both as a job-search assistant demo and as an engineering portfolio project for evidence-grounded LLM workflows.
 
-## What It Does
+## What You Can Do With It
 
-- Accepts pasted profile materials and text-based PDF uploads.
-- Parses and chunks resumes, projects, internships, skills, and education sections.
-- Extracts structured JD requirements with importance, capability tags, verification mode, and interviewability.
-- Retrieves evidence from the candidate's own materials using fake or BGE embeddings and in-memory or Chroma vector storage.
-- Produces public, evidence-safe outputs: match summary, match analysis, three resume bullets, JD-focused interview questions, resume deep-dive questions, and top risk warnings.
-- Evaluates grounding, coverage, specificity, numeric claims, repeated content, and risk consistency.
-- Hides internal requirement/evidence/chunk IDs from user-facing output through a public output gate.
-- Shows controlled processing warnings when recoverable stages fail, instead of exposing raw agent errors or partial unsafe output.
+- Paste resume, project, internship, skill, and education materials.
+- Upload a text-based PDF and extract its content.
+- Paste a target job description.
+- Generate a role match summary and requirement-by-requirement analysis.
+- Get three resume bullets grounded in your own experience.
+- Prepare for JD-focused questions and resume deep-dive questions.
+- Review risk warnings, such as missing hard skills, weak evidence, or vague impact.
+- Use local demo mode, OpenAI, DeepSeek, or an OpenAI-compatible model endpoint.
 
-## Current Architecture
+## What You Need
+
+- A computer that can run Python and Node.js.
+- Your career materials in text form, Markdown, or a text-based PDF.
+- A target job description.
+- Optional: an OpenAI, DeepSeek, or OpenAI-compatible API key if you want live model output.
+
+No API key is required for local demo mode, but demo mode is deterministic and may produce similar-looking outputs for different inputs.
+
+## Quick Start
+
+Clone the repository and start the backend:
+
+```bash
+git clone https://github.com/baihanshan/Career-Agent.git
+cd Career-Agent
+conda create -n carrer_agent python=3.11 -y
+conda activate carrer_agent
+pip install -r requirements-dev.txt
+conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
+```
+
+Start the frontend in another terminal:
+
+```bash
+cd Career-Agent/frontend
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+The frontend talks to `http://localhost:8000` by default. If your backend uses another address, start the frontend with:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
+```
+
+## How To Use The App
+
+1. Add your personal materials.
+   Paste resume text, project notes, internship descriptions, or upload a text-based PDF.
+
+2. Add the target job description.
+   Use the real JD you are preparing for. Longer, more specific JDs usually produce better analysis.
+
+3. Choose a model service.
+   Use local demo mode for a stable offline walkthrough, or enter your own OpenAI, DeepSeek, or compatible API key for live output.
+
+4. Run the analysis.
+   The app will parse your materials, extract JD requirements, retrieve supporting evidence, generate resume and interview suggestions, and check risks.
+
+5. Review the results.
+   Use the match analysis to decide whether to apply, use the resume bullets as draft material, and use the interview section to prepare concrete answers.
+
+## How To Read The Results
+
+- **Match summary:** a quick overview of fit and gaps.
+- **Requirement analysis:** which JD requirements are strong, partial, weak, or missing.
+- **Resume bullets:** evidence-grounded bullet drafts you can adapt into a resume.
+- **Interview preparation:** questions and sample answer directions for both JD skills and your own experience.
+- **Risk warnings:** gaps or weak evidence that may hurt screening or interviews.
+- **Processing warnings:** recoverable issues from the workflow. If the main result is present, these warnings usually mean one part was degraded rather than the whole run failing.
+
+## Privacy Notes
+
+- The app is designed for local development and demo use.
+- API keys entered in the UI are sent with the analysis request but are not written into project files.
+- Do not commit real API keys, resumes, or private job materials to the repository.
+- If you use a live model provider, your submitted content is sent to that provider according to its own terms.
+
+## Troubleshooting
+
+- **The backend is not reachable:** make sure `uvicorn` is running on `http://localhost:8000`.
+- **The frontend cannot analyze:** check the browser Network tab for the `/analysis` response.
+- **PDF upload fails:** use a text-based, unencrypted PDF under 10 MB, or paste the text manually.
+- **Model list fails:** check provider, API key, and Base URL. For compatible providers, the Base URL should usually point to the OpenAI-compatible root such as `/v1`.
+- **Live model output fails:** try local demo mode first to confirm the app itself is running.
+
+## For Developers
+
+CareerPilot Agent is built as an evidence-grounded LLM application with a fixed workflow and local ReAct agents for high-value reasoning steps.
+
+### Architecture
 
 ```text
 FastAPI API
@@ -49,26 +136,15 @@ The top-level LangGraph stays deterministic and fixed. Local semantic decisions 
 - `RiskAuditorAgent` uses role-aware ReAct auditing to prioritize real screening risks over generic soft-skill gaps.
 - JD analysis and resume bullet writing remain structured one-shot LLM calls.
 
-ReAct agents are built with the current LangChain entrypoint:
+ReAct agents use the current LangChain entrypoint:
 
 ```python
 from langchain.agents import create_agent
 ```
 
-OpenAI can use Pydantic `response_format`. DeepSeek and OpenAI-compatible providers use JSON-mode prompting plus local fallback parsing, because provider support for Pydantic structured output is not consistent.
+OpenAI can use Pydantic `response_format`. DeepSeek and OpenAI-compatible providers use JSON-mode prompting plus local fallback parsing because provider support for Pydantic structured output is not consistent.
 
-## Model Providers
-
-The frontend supports a deliberately small provider set:
-
-- Local demo provider for deterministic tests and demos.
-- OpenAI.
-- DeepSeek.
-- OpenAI-compatible chat-completions endpoints.
-
-Users can type a model name manually or call `POST /models/list` from the UI to fetch available remote models. API keys are accepted per request and are not written into project files.
-
-## API Surface
+### API Surface
 
 - `GET /health` returns `{ "status": "ok" }`.
 - `POST /analysis` runs the full analysis workflow.
@@ -77,42 +153,7 @@ Users can type a model name manually or call `POST /models/list` from the UI to 
 
 `POST /analysis` returns an `AnalysisResponse` with status, public requirements, match analysis, generated assets, evaluation report, risk report, processing warnings, and agent traces. Internal IDs stay behind the public output boundary.
 
-## Local Development
-
-Backend:
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent"
-conda activate carrer_agent
-pip install -r requirements-dev.txt
-RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
-conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
-```
-
-Frontend:
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent/frontend"
-npm install
-npm run dev
-```
-
-The frontend talks to `http://localhost:8000` by default. To override it:
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent/frontend"
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
-```
-
-Frontend checks:
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent/frontend"
-npm run check
-npm run build
-```
-
-## Retrieval Options
+### Retrieval Options
 
 Tests can run with deterministic fake embeddings and an in-memory vector store:
 
@@ -124,44 +165,13 @@ For local BGE and Chroma retrieval:
 
 ```bash
 export BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
-export BGE_MODEL_CACHE_DIR=/Users/baihanshan/Desktop/bge-models
-export CHROMA_PATH=/Users/baihanshan/Desktop/career-agent-chroma
+export BGE_MODEL_CACHE_DIR=/path/to/bge-models
+export CHROMA_PATH=/path/to/career-agent-chroma
 ```
 
 The first live retrieval run may download the BGE model into `BGE_MODEL_CACHE_DIR`.
 
-## Demo Walkthrough
-
-1. Start the backend:
-
-   ```bash
-   conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
-   ```
-
-2. Start the frontend:
-
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-3. Open `http://localhost:3000`.
-4. Paste `backend/tests/fixtures/sample_profile.md` into the personal materials field, or upload a text-based PDF.
-5. Paste `backend/tests/fixtures/sample_jd.txt` into the target JD field.
-6. Choose the local demo provider for deterministic output, or enter a real provider API key and model.
-7. Run the analysis and inspect match results, resume bullets, interview preparation, risk warnings, processing warnings, and agent traces.
-
-See `docs/demo-walkthrough.md` for a step-by-step version.
-
-## Testing
-
-Stable fixtures live in `backend/tests/fixtures/`.
-
-- `sample_profile.md` contains a compact candidate profile with education, AI coursework, skills, and a GitHub project.
-- `sample_jd.txt` contains hard skills, responsibilities, and nice-to-have requirements.
-- `fake_llm_*.json` files provide deterministic LLM outputs for integration tests.
-
-Recommended verification:
+### Verification
 
 ```bash
 RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
@@ -169,6 +179,8 @@ cd frontend
 npm run check
 npm run build
 ```
+
+Stable fixtures live in `backend/tests/fixtures/`.
 
 ## Project Boundaries
 

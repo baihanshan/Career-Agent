@@ -2,22 +2,109 @@
 
 **语言:** [English](README.md) | [简体中文](README.zh-CN.md)
 
-CareerPilot Agent 是一个面向中文求职者的 evidence-grounded agentic LLM application。用户提供真实个人背景材料和目标岗位 JD 后，系统会生成结构化岗位要求、匹配分析、简历要点、面试准备和岗位风险提示，并尽量把输出绑定到用户材料中的证据。
+CareerPilot Agent 是一个本地运行的 AI 求职助手。你提供个人简历、项目经历或职业材料，再粘贴目标岗位 JD，它会帮你判断岗位匹配度、提炼简历要点、准备面试问题，并指出申请中可能被筛掉的风险。
 
-项目定位是一个可展示的 AI 应用作品：后端使用 FastAPI 和 Pydantic 定义 API 与结构化数据契约，LangGraph 负责固定主流程编排，关键节点使用 tool-calling ReAct Agent 做局部多轮推理，检索层提供证据 grounding，中文 Next.js 前端承载完整用户流程。
+这个项目目前是本地 Web App。它既可以作为求职辅助工具的 demo，也可以作为一个展示 evidence-grounded LLM workflow 的工程作品。
 
-## 核心能力
+## 你可以用它做什么
 
-- 支持粘贴个人材料，也支持上传文字型 PDF 并提取文本。
-- 将简历、项目、实习、技能、教育等内容解析并切分为可检索片段。
-- 从 JD 中提取结构化岗位要求，包括重要性、能力标签、验证方式和是否适合面试考察。
-- 基于用户自己的材料检索证据，支持 fake/BGE embedding 与 in-memory/Chroma vector store。
-- 生成面向用户的安全输出：岗位匹配摘要、匹配分析、3 条简历 bullet、JD 岗位能力问题、简历深挖问题和 top 风险提示。
-- 评估 grounding、coverage、specificity、数字声明、重复内容和风险一致性。
-- 通过 public output gate 隐藏内部 requirement/evidence/chunk ID，避免把内部追踪字段暴露给用户。
-- 对可恢复的 agent 输出失败返回 processing warning，让主体分析结果继续展示，而不是直接暴露原始错误或不安全半成品。
+- 粘贴简历、项目、实习、技能和教育经历。
+- 上传文字型 PDF 并提取内容。
+- 粘贴目标岗位 JD。
+- 生成岗位匹配摘要和逐条岗位要求分析。
+- 得到 3 条基于真实经历证据的简历 bullet 草稿。
+- 准备 JD 能力考察问题和简历深挖问题。
+- 查看风险提示，例如硬技能缺口、证据不足、项目影响描述不清等。
+- 使用本地演示模式，或接入 OpenAI、DeepSeek、OpenAI-compatible 模型服务。
 
-## 当前架构
+## 你需要准备什么
+
+- 一台可以运行 Python 和 Node.js 的电脑。
+- 文本、Markdown 或文字型 PDF 格式的个人材料。
+- 一个目标岗位 JD。
+- 可选：OpenAI、DeepSeek 或兼容接口的 API key，用于真实模型输出。
+
+本地演示模式不需要 API key，但它是 deterministic demo，不同输入可能会得到风格相近的输出。
+
+## 快速开始
+
+克隆仓库并启动后端：
+
+```bash
+git clone https://github.com/baihanshan/Career-Agent.git
+cd Career-Agent
+conda create -n carrer_agent python=3.11 -y
+conda activate carrer_agent
+pip install -r requirements-dev.txt
+conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
+```
+
+另开一个终端启动前端：
+
+```bash
+cd Career-Agent/frontend
+npm install
+npm run dev
+```
+
+打开：
+
+```text
+http://localhost:3000
+```
+
+前端默认请求 `http://localhost:8000`。如果你的后端地址不同，可以这样启动前端：
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
+```
+
+## 如何使用
+
+1. 添加个人材料。
+   粘贴简历文本、项目经历、实习描述，或上传文字型 PDF。
+
+2. 添加目标岗位 JD。
+   使用真实准备投递的岗位描述。JD 越具体，分析通常越有参考价值。
+
+3. 选择模型服务。
+   想快速演示可以用本地演示模式；想看真实模型输出，可以填写自己的 OpenAI、DeepSeek 或兼容接口 API key。
+
+4. 运行分析。
+   系统会解析个人材料、提取 JD 要求、检索支持证据、生成简历和面试建议，并检查风险。
+
+5. 查看结果。
+   用匹配分析判断是否值得投递，用简历 bullet 作为修改素材，用面试准备部分整理具体回答。
+
+## 如何理解结果
+
+- **匹配摘要：** 快速概括你和岗位的匹配度与主要缺口。
+- **岗位要求分析：** 展示每条 JD 要求是 strong、partial、weak 还是 missing。
+- **简历 bullet：** 基于你真实经历生成的简历要点草稿，需要你再按目标简历风格微调。
+- **面试准备：** 分为 JD 能力考察问题和简历深挖问题，帮助你准备回答思路。
+- **风险提示：** 标出可能影响筛选或面试的短板。
+- **Processing warnings：** 工作流中的可恢复问题。如果主体结果已经展示，通常表示某个环节降级了，而不是整次分析失败。
+
+## 隐私说明
+
+- 这个项目面向本地开发和演示使用。
+- UI 中填写的 API key 会随分析请求发送，但不会写入项目文件。
+- 不要把真实 API key、完整简历或私人岗位材料提交到仓库。
+- 如果使用真实模型 provider，你提交的内容会发送给对应 provider，并受其服务条款约束。
+
+## 常见问题
+
+- **后端连不上：** 确认 `uvicorn` 正在 `http://localhost:8000` 运行。
+- **前端分析失败：** 查看浏览器 Network 里的 `/analysis` response。
+- **PDF 上传失败：** 使用 10 MB 以内、未加密、可复制文字的 PDF，或直接粘贴文本。
+- **模型列表获取失败：** 检查 provider、API key 和 Base URL。兼容接口的 Base URL 通常应指向 OpenAI-compatible 根路径，例如 `/v1`。
+- **真实模型输出失败：** 先切到本地演示模式，确认应用本身能正常运行。
+
+## 面向开发者
+
+CareerPilot Agent 是一个 evidence-grounded LLM application：顶层 workflow 固定，关键语义判断环节使用局部 ReAct Agent。
+
+### 架构
 
 ```text
 FastAPI API
@@ -57,18 +144,7 @@ from langchain.agents import create_agent
 
 OpenAI provider 可以传 Pydantic `response_format`。DeepSeek 和 OpenAI-compatible provider 不依赖 Pydantic structured output，而是使用 JSON prompt 加本地 fallback parser，适配不同 provider 的结构化输出差异。
 
-## 模型服务
-
-前端只保留收敛后的 provider 范围：
-
-- 本地演示 provider，用于 deterministic demo 和测试。
-- OpenAI。
-- DeepSeek。
-- OpenAI-compatible chat-completions 接口。
-
-用户可以手动输入模型名，也可以在 UI 中调用 `POST /models/list` 获取远程 provider 的模型列表。API key 仅随请求使用，不写入项目文件。
-
-## API
+### API
 
 - `GET /health` 返回 `{ "status": "ok" }`。
 - `POST /analysis` 运行完整岗位分析 workflow。
@@ -77,42 +153,7 @@ OpenAI provider 可以传 Pydantic `response_format`。DeepSeek 和 OpenAI-compa
 
 `POST /analysis` 返回 `AnalysisResponse`，包含状态、公开岗位要求、匹配分析、生成内容、评估报告、风险报告、processing warnings 和 agent traces。内部 ID 会被限制在 public output 边界内。
 
-## 本地开发
-
-后端：
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent"
-conda activate carrer_agent
-pip install -r requirements-dev.txt
-RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
-conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
-```
-
-前端：
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent/frontend"
-npm install
-npm run dev
-```
-
-前端默认请求 `http://localhost:8000`。如需指定后端地址：
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent/frontend"
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
-```
-
-前端检查：
-
-```bash
-cd "/Users/baihanshan/Desktop/Career Agent/frontend"
-npm run check
-npm run build
-```
-
-## 检索配置
+### 检索配置
 
 测试可以使用 deterministic fake embedding 和 in-memory vector store：
 
@@ -124,44 +165,13 @@ RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
 
 ```bash
 export BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
-export BGE_MODEL_CACHE_DIR=/Users/baihanshan/Desktop/bge-models
-export CHROMA_PATH=/Users/baihanshan/Desktop/career-agent-chroma
+export BGE_MODEL_CACHE_DIR=/path/to/bge-models
+export CHROMA_PATH=/path/to/career-agent-chroma
 ```
 
 第一次真实检索运行可能会把 BGE 模型下载到 `BGE_MODEL_CACHE_DIR`。
 
-## Demo 流程
-
-1. 启动后端：
-
-   ```bash
-   conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
-   ```
-
-2. 启动前端：
-
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-3. 打开 `http://localhost:3000`。
-4. 将 `backend/tests/fixtures/sample_profile.md` 粘贴到个人材料输入框，或上传文字型 PDF。
-5. 将 `backend/tests/fixtures/sample_jd.txt` 粘贴到目标 JD 输入框。
-6. 选择本地演示 provider 获取稳定输出，或填写真实 provider API key 和模型名。
-7. 运行分析，查看匹配结果、简历 bullet、面试准备、风险提示、processing warnings 和 agent traces。
-
-更详细的演示步骤见 `docs/demo-walkthrough.md`。
-
-## 测试
-
-稳定测试 fixtures 位于 `backend/tests/fixtures/`：
-
-- `sample_profile.md`：包含教育、AI 课程、技能和 GitHub 项目的候选人资料。
-- `sample_jd.txt`：包含硬技能、职责和加分项要求的岗位描述。
-- `fake_llm_*.json`：为集成测试提供 deterministic LLM 输出。
-
-推荐验证命令：
+### 验证
 
 ```bash
 RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
@@ -169,6 +179,8 @@ cd frontend
 npm run check
 npm run build
 ```
+
+稳定测试 fixtures 位于 `backend/tests/fixtures/`。
 
 ## 项目边界
 
