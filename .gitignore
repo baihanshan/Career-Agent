@@ -20,3 +20,6 @@ chroma/
 
 .DS_Store
 .superpowers/
+
+# Local Codex project memory; keep it on this machine only.
+project_memory/
