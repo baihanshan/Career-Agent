@@ -14,6 +14,22 @@ export type AnalysisStatus = "completed" | "failed";
 export type LlmProvider = "local" | "openai" | "deepseek" | "openai_compatible";
 export type ProfileSectionType = "internship" | "project" | "skill" | "education" | "other";
 
+export interface ModelOption {
+  id: string;
+  owned_by?: string | null;
+}
+
+export interface ModelListRequest {
+  provider: LlmProvider;
+  api_key?: string;
+  base_url?: string;
+}
+
+export interface ModelListResponse {
+  models: ModelOption[];
+  warning?: string | null;
+}
+
 export interface ProfileDocument {
   document_id?: string;
   source_name: string;

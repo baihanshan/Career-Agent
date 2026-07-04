@@ -1,9 +1,16 @@
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import JSONResponse
 
-from backend.app.api.schemas import AnalysisRequest, AnalysisResponse, PDFParseResponse
+from backend.app.api.schemas import (
+    AnalysisRequest,
+    AnalysisResponse,
+    ModelListRequest,
+    ModelListResponse,
+    PDFParseResponse,
+)
 from backend.app.core.errors import PDFProcessingErrorCode
 from backend.app.documents.pdf_parser import PDFDocumentError, parse_pdf_bytes
+from backend.app.llm.model_catalog import ModelCatalogService
 from backend.app.workflow import service
 
 
@@ -19,6 +26,17 @@ def health() -> dict[str, str]:
 @router.post("/analysis", response_model=AnalysisResponse)
 def create_analysis(request: AnalysisRequest) -> AnalysisResponse:
     return AnalysisResponse.model_validate(service.run_analysis(request))
+
+
+@router.post("/models/list", response_model=ModelListResponse)
+def list_models(request: ModelListRequest) -> ModelListResponse:
+    try:
+        return ModelCatalogService().list_models(request)
+    except Exception:
+        return ModelListResponse(
+            models=[],
+            warning="模型列表获取失败，请检查 API Key、Base URL 或手动输入模型名。",
+        )
 
 
 @router.post("/documents/parse-pdf", response_model=PDFParseResponse)

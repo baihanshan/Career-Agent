@@ -188,4 +188,24 @@ if (missingPdfMarkers.length > 0 || !api.includes("parsePdfResume")) {
   process.exit(1);
 }
 
+const llmSettings = readFileSync(join(process.cwd(), "components/LlmSettings.tsx"), "utf8");
+const modelListMarkers = [
+  "listModels",
+  "获取模型列表",
+  "<datalist",
+  "模型可下拉选择，也可以手动输入。",
+];
+const missingModelListMarkers = modelListMarkers.filter(
+  (marker) => !llmSettings.includes(marker)
+);
+
+if (
+  missingModelListMarkers.length > 0 ||
+  !api.includes("/models/list") ||
+  !api.includes("ModelListResponse")
+) {
+  console.error(`Missing model list combo-box behavior: ${missingModelListMarkers.join(", ")}`);
+  process.exit(1);
+}
+
 console.log("Frontend structure and Chinese UI copy look ready.");

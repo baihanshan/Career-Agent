@@ -63,7 +63,7 @@ textarea {
 .llm-settings {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(150px, 0.75fr) minmax(220px, 1.25fr) minmax(170px, 1fr) minmax(220px, 1.25fr) minmax(120px, 0.6fr);
+  grid-template-columns: minmax(140px, 0.75fr) minmax(190px, 1.1fr) minmax(180px, 1fr) minmax(190px, 1.1fr) minmax(110px, 0.6fr) minmax(170px, 0.9fr);
   gap: 12px;
   align-items: end;
   border: 1px solid #d8dee8;
@@ -143,6 +143,36 @@ textarea {
 .form-actions button:disabled {
   background: #9ca3af;
   cursor: not-allowed;
+}
+
+.model-list-actions {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-list-actions button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #ffffff;
+  background: #1d4ed8;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.model-list-actions button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.model-list-actions span {
+  min-height: 18px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .form-actions span,

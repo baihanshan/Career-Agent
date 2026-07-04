@@ -51,6 +51,30 @@ class RunConfig(BaseModel):
         return stripped or None
 
 
+class ModelListRequest(BaseModel):
+    provider: LLMProvider
+    api_key: str | None = None
+    base_url: str | None = None
+
+    @field_validator("api_key", "base_url")
+    @classmethod
+    def strip_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class ModelOption(BaseModel):
+    id: str
+    owned_by: str | None = None
+
+
+class ModelListResponse(BaseModel):
+    models: list[ModelOption] = Field(default_factory=list)
+    warning: str | None = None
+
+
 class JDRequirement(BaseModel):
     requirement_id: str
     category: RequirementCategory
