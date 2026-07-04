@@ -55,7 +55,9 @@ scripts/start_app.sh
 - 安装缺失的后端依赖和前端依赖。
 - 启动 FastAPI 后端和 Next.js 前端。
 - 打开 `http://127.0.0.1:3000`。
-- 将日志写入 `.local/logs/`。
+- 如果健康的后端或前端已经在运行，会直接复用。
+- 将后端日志写入 `.local/logs/backend.log`。
+- 将前端日志写入 `.local/logs/frontend.log`。
 
 停止应用时，在启动器终端按 `Ctrl+C`。
 
@@ -64,6 +66,14 @@ scripts/start_app.sh
 ```bash
 scripts/start_app.sh --no-browser
 ```
+
+常用环境变量覆盖：
+
+```bash
+CONDA_ENV=carrer_agent BACKEND_PORT=8000 FRONTEND_PORT=3000 scripts/start_app.sh
+```
+
+如果端口已被占用但对应服务不健康，启动器会停止并提示你释放端口或换一个端口。
 
 ### 手动启动（开发备用）
 

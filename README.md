@@ -55,7 +55,9 @@ The launcher will:
 - Install missing backend and frontend dependencies.
 - Start the FastAPI backend and Next.js frontend.
 - Open `http://127.0.0.1:3000`.
-- Write logs to `.local/logs/`.
+- Reuse an already healthy backend or frontend if one is running.
+- Write backend logs to `.local/logs/backend.log`.
+- Write frontend logs to `.local/logs/frontend.log`.
 
 Press `Ctrl+C` in the launcher terminal to stop services started by the launcher.
 
@@ -64,6 +66,14 @@ To start without opening a browser:
 ```bash
 scripts/start_app.sh --no-browser
 ```
+
+Useful environment overrides:
+
+```bash
+CONDA_ENV=carrer_agent BACKEND_PORT=8000 FRONTEND_PORT=3000 scripts/start_app.sh
+```
+
+If a port is already in use but the expected service is not healthy, the launcher will stop and tell you which port to free or override.
 
 ### Manual Launch For Development
 
