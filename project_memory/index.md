@@ -6,7 +6,7 @@ This file is a bounded routing layer. Do not put long memory content here.
 
 ## Active Entries
 
-<!-- Keep active entries <= 50. Current active entries: 6. -->
+<!-- Keep active entries <= 50. Current active entries: 7. -->
 
 - id: BUG-0001-resume-evidence-recursion-limit
   path: project_memory/active/bugs/BUG-0001-resume-evidence-recursion-limit.md
@@ -23,6 +23,14 @@ This file is a bounded routing layer. Do not put long memory content here.
   status: active
   tags: 
   use_when: Debugging `/analysis` failures where frontend shows invalid evidence, backend returns `REACT_EVIDENCE_VIOLATION`, or `interview_prep_agent` fails at `quality_gate`.
+
+- id: BUG-0003-risk-auditor-output-failure-degradation
+  path: project_memory/active/bugs/BUG-0003-risk-auditor-output-failure-degradation.md
+  title: Risk Auditor output failures should not fail the whole analysis
+  level: P1
+  status: active
+  tags: 
+  use_when: Debugging intermittent `/analysis` failures with `REACT_QUALITY_GATE_FAILED` or `REACT_OUTPUT_PARSE_ERROR` at `risk_auditor_agent`.
 
 - id: ADR-0001-use-langchain-create-agent
   path: project_memory/active/decisions/ADR-0001-use-langchain-create-agent.md

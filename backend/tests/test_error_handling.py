@@ -14,6 +14,7 @@ from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import run_workflow
 from backend.app.workflow.nodes import WorkflowServices
 from backend.app.workflow.resume_evidence_agent import ResumeEvidenceAgentError
+from backend.app.workflow.risk_auditor_agent import RiskAuditorAgentError
 
 
 def test_app_error_and_processing_warning_models_are_serializable():
@@ -162,6 +163,30 @@ def test_react_output_parse_failure_reports_the_actual_failure_stage():
     }
 
 
+@pytest.mark.parametrize(
+    "error_code",
+    [
+        ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value,
+        ReActErrorCode.REACT_QUALITY_GATE_FAILED.value,
+    ],
+)
+def test_risk_auditor_output_failure_degrades_to_processing_warning(error_code):
+    services = _services()
+    services.risk_auditor_agent = _FailingRiskAuditorAgent(error_code)
+
+    response = run_workflow(request=_request(), services=services)
+
+    assert response.status == "completed"
+    assert response.error is None
+    assert response.result["risk_report"] is None
+    assert response.result["evaluation_report"]["risk_summary"]
+    assert response.result["processing_warnings"][-1] == {
+        "code": error_code,
+        "message": "Risk audit could not be completed safely; showing baseline evaluation warnings instead.",
+        "source": "risk_auditor_agent",
+    }
+
+
 def test_react_recursion_limit_failure_reports_the_actual_failure_stage():
     services = _services()
     services.resume_evidence_agent = _FailingResumeEvidenceAgent(
@@ -243,6 +268,19 @@ class _FailingResumeEvidenceAgent:
             "Unsafe internal failure detail.",
             failed_tool="structured_tool",
             trace_summary="steps=1 tools=structured_tool statuses=error",
+            code=self.code,
+        )
+
+
+class _FailingRiskAuditorAgent:
+    def __init__(self, code):
+        self.code = code
+
+    def run(self, state):
+        raise RiskAuditorAgentError(
+            "Risk Auditor Agent failed deterministic quality validation after 3 attempts.",
+            failed_tool="quality_gate",
+            trace_summary="steps=3 tools=rank_candidate_risks statuses=ok",
             code=self.code,
         )
 

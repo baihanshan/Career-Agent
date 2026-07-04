@@ -6,7 +6,7 @@
 
 ### 当前目标
 
-- 已完成：用户用真实 DeepSeek 复测 `/analysis` 已跑通，前端内容正常显示；随后修复前端 agent trace 列表重复 React key warning，并将 Risk Auditor 改为岗位类型感知的核心风险优先逻辑，避免泛软技能风险压过真实筛选风险。真实复测又触发 `REACT_EVIDENCE_VIOLATION` 和 `REACT_OUTPUT_PARSE_ERROR`，已补 Risk Auditor 内部 evidence id 规范化、最终风险 JSON 容错解析，以及 Interview Prep 内部 question evidence/requirement id 反推规范化。2026-07-02：按用户要求调整 JD 相关面试问题生成，使其侧重岗位能力考察型问题，而不是默认围绕简历项目追问。2026-07-04：在收敛版 provider 范围内新增模型名自动获取：仅保留 OpenAI、DeepSeek、兼容接口、本地演示，后端新增 `POST /models/list`，前端模型输入支持下拉选择和手动输入。
+- 已完成：用户用真实 DeepSeek 复测 `/analysis` 已跑通，前端内容正常显示；随后修复前端 agent trace 列表重复 React key warning，并将 Risk Auditor 改为岗位类型感知的核心风险优先逻辑，避免泛软技能风险压过真实筛选风险。真实复测又触发 `REACT_EVIDENCE_VIOLATION` 和 `REACT_OUTPUT_PARSE_ERROR`，已补 Risk Auditor 内部 evidence id 规范化、最终风险 JSON 容错解析，以及 Interview Prep 内部 question evidence/requirement id 反推规范化。2026-07-02：按用户要求调整 JD 相关面试问题生成，使其侧重岗位能力考察型问题，而不是默认围绕简历项目追问。2026-07-04：在收敛版 provider 范围内新增模型名自动获取：仅保留 OpenAI、DeepSeek、兼容接口、本地演示，后端新增 `POST /models/list`，前端模型输入支持下拉选择和手动输入。2026-07-04：修复 Risk Auditor 末端偶发 `REACT_QUALITY_GATE_FAILED` / `REACT_OUTPUT_PARSE_ERROR` 导致整次 `/analysis` failed 的问题；这些风险审计输出失败现在降级为 processing warning，主体结果继续返回。2026-07-04：更新 GitHub 主页 README 与中文版 README，内容同步到最近架构、功能、API、模型 provider、PDF 解析和验证命令。
 
 ### 当前项目状态
 
@@ -14,6 +14,8 @@
 
 ### 最近变更
 
+- 2026-07-04：更新 `README.md` 和 `README.zh.md`，将 GitHub 主页说明从早期 MVP 表述改为当前架构说明；覆盖固定 LangGraph 主流程、三个 ReAct Agent、public output gate、模型列表获取、PDF 解析、风险审计降级 warning、运行/测试命令和项目边界。验证：`npm run check` 通过；README 中不再宣称当前未输出的 cover letter。
+- 2026-07-04：Risk Auditor 末端输出失败降级：`nodes.audit_risks()` 对 `risk_auditor_agent` 的 `REACT_OUTPUT_PARSE_ERROR` 和 `REACT_QUALITY_GATE_FAILED` 不再写入 fatal `state.errors`，而是追加 `ProcessingWarning`，让 `/analysis` 继续返回已完成的 JD 分析、匹配、简历要点、面试准备和基础 evaluation report。新增回归测试 `test_risk_auditor_output_failure_degrades_to_processing_warning`。验证：相关后端测试组和完整 `RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q` 通过。
 - 2026-07-04：按用户要求实现模型名自动识别，但不恢复多供应商 preset。新增 `backend/app/llm/model_catalog.py`、`ModelListRequest/ModelListResponse`、`POST /models/list`；DeepSeek/OpenAI 使用默认 `/models` 地址，兼容接口根据 Base URL 拼 `/models`。前端 `LlmSettings` 模型输入改为可手动输入且可通过 `datalist` 下拉选择，新增「获取模型列表」按钮和受控中文提示。验证：`backend/tests/test_model_catalog.py backend/tests/test_api.py`、完整后端 pytest、`npm run check`、`npm run build` 均通过。
 - 2026-07-02：调整 Interview Prep 的 JD 问题边界：`jd_questions` 必须偏岗位能力考察型问题，基于 JD 的岗位方向、核心职责、必备技能、业务/技术场景、约束和验证指标出题；项目/实习/公司/经历追问应放入 `resume_deep_dive_questions`。补充 `question_generation_policy` payload 和 `JD_QUESTION_USES_RESUME_EXPERIENCE` 质量门禁。本次按用户要求未新增测试，仅执行 `py_compile`。
 - 2026-07-01：用户用日志确认失败阶段为 `agent=interview_prep_agent tool=quality_gate`，错误为 `REACT_EVIDENCE_VIOLATION`。补充回归测试和修复：当真实模型漏填/错填 JD question 的 `target_requirement_ids` 且 `supporting_evidence_ids` 不在 allowlist 时，从本轮 allowed evidence 回填 supporting evidence，并反推 interviewable requirement id。
@@ -41,6 +43,7 @@
 - `project_memory/active/decisions/ADR-0001-use-langchain-create-agent.md`
 - `project_memory/active/bugs/BUG-0001-resume-evidence-recursion-limit.md`
 - `project_memory/active/bugs/BUG-0002-interview-prep-evidence-id-normalization.md`
+- `project_memory/active/bugs/BUG-0003-risk-auditor-output-failure-degradation.md`
 - `project_memory/active/topics/TOPIC-0001-role-aware-risk-auditor.md`
 - `project_memory/active/topics/TOPIC-0002-interview-prep-question-boundary.md`
 - `project_memory/active/topics/TOPIC-0003-model-list-combobox.md`
