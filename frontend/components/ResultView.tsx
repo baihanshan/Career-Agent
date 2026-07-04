@@ -64,7 +64,7 @@ function InterviewQuestionGroup({
 }) {
   return (
     <div className="prep-list">
-      <h3>{title}</h3>
+      <h3 className="question-group-label">{title}</h3>
       {questions.map((item, questionIndex) => (
         <article className="prep-item" key={`${title}-${questionIndex}`}>
           <h3>{item.question}</h3>

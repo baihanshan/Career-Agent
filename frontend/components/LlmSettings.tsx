@@ -1,3 +1,6 @@
+import { useMemo, useState } from "react";
+
+import { listModels } from "../lib/api";
 import type { LlmProvider } from "../lib/types";
 
 export interface LlmSettingsValue {
@@ -37,6 +40,17 @@ const PROVIDER_DEFAULTS: Record<
 
 export function LlmSettings({ value, onChange }: LlmSettingsProps) {
   const requiresApiKey = value.provider !== "local";
+  const canListModels =
+    value.provider !== "local" &&
+    value.apiKey.trim().length > 0 &&
+    (value.provider !== "openai_compatible" || value.baseUrl.trim().length > 0);
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelListMessage, setModelListMessage] = useState("");
+  const datalistId = useMemo(
+    () => `model-options-${value.provider}`,
+    [value.provider]
+  );
 
   function update(patch: Partial<LlmSettingsValue>) {
     onChange({ ...value, ...patch });
@@ -51,6 +65,38 @@ export function LlmSettings({ value, onChange }: LlmSettingsProps) {
       model: defaults.model,
       baseUrl: defaults.baseUrl,
     });
+    setModelOptions([]);
+    setModelListMessage("");
+  }
+
+  async function handleListModels() {
+    if (!canListModels || isLoadingModels) {
+      return;
+    }
+
+    setIsLoadingModels(true);
+    setModelListMessage("");
+    try {
+      const response = await listModels({
+        provider: value.provider,
+        api_key: value.apiKey.trim(),
+        base_url:
+          value.provider === "deepseek" || value.provider === "openai_compatible"
+            ? value.baseUrl.trim()
+            : undefined,
+      });
+      const options = response.models.map((model) => model.id);
+      setModelOptions(options);
+      setModelListMessage(
+        response.warning ??
+          (options.length > 0 ? `已获取 ${options.length} 个模型。` : "未获取到模型列表，请手动输入。")
+      );
+    } catch {
+      setModelOptions([]);
+      setModelListMessage("模型列表获取失败，请手动输入模型名。");
+    } finally {
+      setIsLoadingModels(false);
+    }
   }
 
   return (
@@ -83,10 +129,16 @@ export function LlmSettings({ value, onChange }: LlmSettingsProps) {
       <label className="field compact-field">
         <span>模型</span>
         <input
+          list={modelOptions.length > 0 ? datalistId : undefined}
           value={value.model}
           onChange={(event) => update({ model: event.target.value })}
           placeholder="deepseek-v4-flash"
         />
+        <datalist id={datalistId}>
+          {modelOptions.map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
       </label>
 
       <label className="field compact-field">
@@ -110,6 +162,17 @@ export function LlmSettings({ value, onChange }: LlmSettingsProps) {
           onChange={(event) => update({ temperature: Number(event.target.value) })}
         />
       </label>
+
+      <div className="model-list-actions">
+        <button
+          type="button"
+          disabled={!canListModels || isLoadingModels}
+          onClick={handleListModels}
+        >
+          {isLoadingModels ? "获取中..." : "获取模型列表"}
+        </button>
+        <span>{modelListMessage || "模型可下拉选择，也可以手动输入。"}</span>
+      </div>
     </section>
   );
 }

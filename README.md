@@ -1,41 +1,126 @@
 # CareerPilot Agent
 
-CareerPilot Agent is an evidence-grounded job application assistant. The MVP turns user-provided career materials and a target job description into structured match analysis, resume bullets, a cover letter draft, interview preparation notes, and visible evidence or risk warnings.
+CareerPilot Agent is an evidence-grounded, agentic job application assistant for Chinese-speaking job seekers. It turns user-provided career materials and a target job description into structured job requirements, match analysis, resume bullets, interview preparation, and role-aware risk warnings.
 
-It is designed as a portfolio-ready AI application project: FastAPI and Pydantic handle the API and schemas, document processing and retrieval provide evidence, LangGraph orchestrates the workflow, and a Chinese Next.js frontend exposes the user workflow.
+The project is built as a portfolio-ready LLM application: FastAPI and Pydantic provide the backend API contract, LangGraph orchestrates a fixed workflow, selected workflow stages use tool-calling ReAct agents, retrieval grounds outputs in user evidence, and a Chinese Next.js frontend exposes the end-to-end workflow.
 
-## MVP Scope
+[中文说明](README.zh.md)
 
-- Paste or upload career materials.
-- Paste a target job description.
-- Parse and chunk profile materials.
-- Extract structured job requirements.
-- Retrieve evidence from user materials.
-- Generate application assets with evidence references.
-- Evaluate grounding, coverage, specificity, and hallucination risk.
-- Display results, evidence, and warnings in a web UI.
+## What It Does
 
-## Non-MVP Scope
+- Accepts pasted profile materials and text-based PDF uploads.
+- Parses and chunks resumes, projects, internships, skills, and education sections.
+- Extracts structured JD requirements with importance, capability tags, verification mode, and interviewability.
+- Retrieves evidence from the candidate's own materials using fake or BGE embeddings and in-memory or Chroma vector storage.
+- Produces public, evidence-safe outputs: match summary, match analysis, three resume bullets, JD-focused interview questions, resume deep-dive questions, and top risk warnings.
+- Evaluates grounding, coverage, specificity, numeric claims, repeated content, and risk consistency.
+- Hides internal requirement/evidence/chunk IDs from user-facing output through a public output gate.
+- Shows controlled processing warnings when recoverable stages fail, instead of exposing raw agent errors or partial unsafe output.
 
-- Automatic job applications.
-- Browser control.
-- Multi-user login.
-- Payments.
-- Social features.
-- Complex resume layout or formatting.
+## Current Architecture
+
+```text
+FastAPI API
+  -> LangGraph fixed workflow
+      -> parse_inputs
+      -> index_profile
+      -> jd_analyst
+      -> resume_evidence_agent
+      -> match_strategist
+      -> resume_bullet_agent
+      -> interview_prep_agent
+      -> risk_auditor_agent
+      -> public_output_gate
+      -> finalize_response
+  -> Pydantic public response
+
+Next.js Chinese frontend
+  -> profile/JD input
+  -> PDF text extraction
+  -> model provider settings
+  -> model list lookup
+  -> results, warnings, and agent trace display
+```
+
+The top-level LangGraph stays deterministic and fixed. Local semantic decisions are delegated only where they add value:
+
+- `ResumeEvidenceAgent` uses tool-calling ReAct to select grounded evidence.
+- `InterviewPrepAgent` uses lightweight ReAct to separate JD capability questions from resume deep-dive questions.
+- `RiskAuditorAgent` uses role-aware ReAct auditing to prioritize real screening risks over generic soft-skill gaps.
+- JD analysis and resume bullet writing remain structured one-shot LLM calls.
+
+ReAct agents are built with the current LangChain entrypoint:
+
+```python
+from langchain.agents import create_agent
+```
+
+OpenAI can use Pydantic `response_format`. DeepSeek and OpenAI-compatible providers use JSON-mode prompting plus local fallback parsing, because provider support for Pydantic structured output is not consistent.
+
+## Model Providers
+
+The frontend supports a deliberately small provider set:
+
+- Local demo provider for deterministic tests and demos.
+- OpenAI.
+- DeepSeek.
+- OpenAI-compatible chat-completions endpoints.
+
+Users can type a model name manually or call `POST /models/list` from the UI to fetch available remote models. API keys are accepted per request and are not written into project files.
+
+## API Surface
+
+- `GET /health` returns `{ "status": "ok" }`.
+- `POST /analysis` runs the full analysis workflow.
+- `POST /models/list` fetches model options for OpenAI, DeepSeek, or compatible providers and returns `{ models, warning }`.
+- `POST /documents/parse-pdf` extracts text from text-based PDFs up to 10 MB.
+
+`POST /analysis` returns an `AnalysisResponse` with status, public requirements, match analysis, generated assets, evaluation report, risk report, processing warnings, and agent traces. Internal IDs stay behind the public output boundary.
 
 ## Local Development
 
-Backend package management uses `pip` with `requirements-dev.txt` for the MVP.
+Backend:
 
 ```bash
+cd "/Users/baihanshan/Desktop/Career Agent"
 conda activate carrer_agent
 pip install -r requirements-dev.txt
-conda run -n carrer_agent python -m pytest backend/tests
-conda run -n carrer_agent uvicorn backend.app.main:app --reload
+RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
+conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
 ```
 
-Sprint 2 adds local retrieval dependencies for BGE embeddings and Chroma:
+Frontend:
+
+```bash
+cd "/Users/baihanshan/Desktop/Career Agent/frontend"
+npm install
+npm run dev
+```
+
+The frontend talks to `http://localhost:8000` by default. To override it:
+
+```bash
+cd "/Users/baihanshan/Desktop/Career Agent/frontend"
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
+```
+
+Frontend checks:
+
+```bash
+cd "/Users/baihanshan/Desktop/Career Agent/frontend"
+npm run check
+npm run build
+```
+
+## Retrieval Options
+
+Tests can run with deterministic fake embeddings and an in-memory vector store:
+
+```bash
+RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
+```
+
+For local BGE and Chroma retrieval:
 
 ```bash
 export BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
@@ -43,55 +128,14 @@ export BGE_MODEL_CACHE_DIR=/Users/baihanshan/Desktop/bge-models
 export CHROMA_PATH=/Users/baihanshan/Desktop/career-agent-chroma
 ```
 
-The first live Sprint 2 retrieval run may download the BGE model into `BGE_MODEL_CACHE_DIR`. Tests can still use the deterministic fake embedding client and in-memory vector store, so the backend test suite does not require a model download or persistent Chroma database.
-
-Frontend development uses Next.js:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The frontend talks to the backend at `http://localhost:8000` by default. To override it:
-
-```bash
-cd frontend
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
-```
-
-### LLM Provider
-
-By default, the backend uses a deterministic local LLM client so demos and tests are stable. In that mode, different inputs can produce similar outputs because no live model provider is called.
-
-The web UI also supports user-provided model settings. Users can choose DeepSeek, OpenAI, or another OpenAI-compatible chat-completions endpoint, enter their own API key, and submit an analysis. Those settings are remembered in the user's browser after the first submission, but API keys are not hard-coded into project files.
-
-To use a real OpenAI model, export an API key before starting the backend:
-
-```bash
-export OPENAI_API_KEY=sk-...
-export OPENAI_MODEL=gpt-4.1
-conda run -n carrer_agent uvicorn backend.app.main:app --reload
-```
-
-If a request sets `run_config.model` to a value other than `default`, that model overrides `OPENAI_MODEL`.
-
-Frontend checks:
-
-```bash
-cd frontend
-npm run check
-npm run build
-```
+The first live retrieval run may download the BGE model into `BGE_MODEL_CACHE_DIR`.
 
 ## Demo Walkthrough
-
-Use the stable demo fixtures for a deterministic walkthrough:
 
 1. Start the backend:
 
    ```bash
-   conda run -n carrer_agent uvicorn backend.app.main:app --reload
+   conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
    ```
 
 2. Start the frontend:
@@ -102,38 +146,43 @@ Use the stable demo fixtures for a deterministic walkthrough:
    ```
 
 3. Open `http://localhost:3000`.
-4. Paste `backend/tests/fixtures/sample_profile.md` into the personal materials field.
+4. Paste `backend/tests/fixtures/sample_profile.md` into the personal materials field, or upload a text-based PDF.
 5. Paste `backend/tests/fixtures/sample_jd.txt` into the target JD field.
-6. Run the analysis and inspect match summary, evidence references, generated assets, workflow warnings, and risk warnings.
+6. Choose the local demo provider for deterministic output, or enter a real provider API key and model.
+7. Run the analysis and inspect match results, resume bullets, interview preparation, risk warnings, processing warnings, and agent traces.
 
 See `docs/demo-walkthrough.md` for a step-by-step version.
 
-## Current API
+## Testing
 
-- `GET /health` returns `{ "status": "ok" }`.
-- `POST /analysis` accepts profile documents and a job description, validates the request, runs the workflow, and returns structured requirements, evidence, match analysis, generated assets, evaluation report, and warnings.
-
-## Test Fixtures
-
-Stable workflow fixtures live in `backend/tests/fixtures/`.
+Stable fixtures live in `backend/tests/fixtures/`.
 
 - `sample_profile.md` contains a compact candidate profile with education, AI coursework, skills, and a GitHub project.
 - `sample_jd.txt` contains hard skills, responsibilities, and nice-to-have requirements.
 - `fake_llm_*.json` files provide deterministic LLM outputs for integration tests.
 
-These fixtures let the core workflow run in tests without depending on a live model provider or nondeterministic model responses.
+Recommended verification:
 
-## Docker Strategy
+```bash
+RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
+cd frontend
+npm run check
+npm run build
+```
 
-This MVP currently uses a local development setup instead of Docker:
+## Project Boundaries
 
-- Backend: conda environment `carrer_agent` plus `requirements-dev.txt`
-- Frontend: local Node.js dependencies from `frontend/package-lock.json`
-- Vector store: in-memory test vector store for the MVP workflow
-- LLM: deterministic fake LLM client by default, or OpenAI Responses API when `OPENAI_API_KEY` is configured
+CareerPilot Agent intentionally does not handle:
 
-Docker is intentionally deferred until the project switches from fake/local services to external providers such as OpenAI and Chroma. At that point, a `docker-compose.yml` should define separate `backend`, `frontend`, and vector-store services with environment variables from `.env.example`.
+- Automatic job applications.
+- Browser automation.
+- Multi-user login.
+- Payments.
+- Social features.
+- Complex resume layout or document formatting.
+
+The focus is a high-signal, evidence-grounded AI workflow that demonstrates agent architecture, retrieval, structured outputs, quality gates, and a usable Chinese frontend.
 
 ## Portfolio Summary
 
-Architecture summary and resume-ready project bullets are available in `docs/resume-bullets.md`.
+Architecture notes and resume-ready project bullets are available in `docs/sprint2/resume-bullets.md`.

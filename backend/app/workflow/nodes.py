@@ -308,6 +308,16 @@ def audit_risks(state: AnalysisState, services: WorkflowServices) -> AnalysisSta
             exc,
             WorkflowErrorCode.RISK_AUDITOR_AGENT_ERROR.value,
         )
+        if error_code in {
+            ReActErrorCode.REACT_OUTPUT_PARSE_ERROR.value,
+            ReActErrorCode.REACT_QUALITY_GATE_FAILED.value,
+        }:
+            return _append_warning(
+                state,
+                error_code,
+                "Risk audit could not be completed safely; showing baseline evaluation warnings instead.",
+                "risk_auditor_agent",
+            )
         return _append_error(
             state,
             error_code,
@@ -396,6 +406,22 @@ def _append_error(
 ) -> AnalysisState:
     return state.model_copy(
         update={"errors": [*state.errors, AppError(code=code, message=message, details=details)]}
+    )
+
+
+def _append_warning(
+    state: AnalysisState,
+    code: str,
+    message: str,
+    source: str | None = None,
+) -> AnalysisState:
+    return state.model_copy(
+        update={
+            "processing_warnings": [
+                *state.processing_warnings,
+                ProcessingWarning(code=code, message=message, source=source),
+            ]
+        }
     )
 
 

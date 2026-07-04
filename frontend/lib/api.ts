@@ -1,6 +1,8 @@
 import type {
   AnalysisRequest,
   AnalysisResponse,
+  ModelListRequest,
+  ModelListResponse,
   PDFParseError,
   PDFParseResponse,
 } from "./types";
@@ -37,6 +39,25 @@ export class PDFParseRequestError extends Error {
     super(message);
     this.name = "PDFParseRequestError";
   }
+}
+
+export async function listModels(request: ModelListRequest): Promise<ModelListResponse> {
+  const response = await fetch(`${API_BASE_URL}/models/list`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    return {
+      models: [],
+      warning: "模型列表获取失败，请检查 API Key、Base URL 或手动输入模型名。",
+    };
+  }
+
+  return (await response.json()) as ModelListResponse;
 }
 
 export async function parsePdfResume(file: File): Promise<PDFParseResponse> {

@@ -1,12 +1,12 @@
 # Project Memory Index
 
-Updated: 2026-07-02
+Updated: 2026-07-04
 
 This file is a bounded routing layer. Do not put long memory content here.
 
 ## Active Entries
 
-<!-- Keep active entries <= 50. Current active entries: 5. -->
+<!-- Keep active entries <= 50. Current active entries: 7. -->
 
 - id: BUG-0001-resume-evidence-recursion-limit
   path: project_memory/active/bugs/BUG-0001-resume-evidence-recursion-limit.md
@@ -23,6 +23,14 @@ This file is a bounded routing layer. Do not put long memory content here.
   status: active
   tags: 
   use_when: Debugging `/analysis` failures where frontend shows invalid evidence, backend returns `REACT_EVIDENCE_VIOLATION`, or `interview_prep_agent` fails at `quality_gate`.
+
+- id: BUG-0003-risk-auditor-output-failure-degradation
+  path: project_memory/active/bugs/BUG-0003-risk-auditor-output-failure-degradation.md
+  title: Risk Auditor output failures should not fail the whole analysis
+  level: P1
+  status: active
+  tags: 
+  use_when: Debugging intermittent `/analysis` failures with `REACT_QUALITY_GATE_FAILED` or `REACT_OUTPUT_PARSE_ERROR` at `risk_auditor_agent`.
 
 - id: ADR-0001-use-langchain-create-agent
   path: project_memory/active/decisions/ADR-0001-use-langchain-create-agent.md
@@ -47,6 +55,14 @@ This file is a bounded routing layer. Do not put long memory content here.
   status: active
   tags: 
   use_when: 修改 JD 相关面试问题、简历深挖问题、InterviewPrepAgent prompt 或面试问题质量门禁。
+
+- id: TOPIC-0003-model-list-combobox
+  path: project_memory/active/topics/TOPIC-0003-model-list-combobox.md
+  title: 模型名自动获取与可输入下拉框
+  level: P1
+  status: active
+  tags: 
+  use_when: 修改前端模型设置、`/models/list`、模型名下拉/手动输入、OpenAI/DeepSeek/openai-compatible 模型列表获取逻辑。
 
 
 ## Pinned Entries

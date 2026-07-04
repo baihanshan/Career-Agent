@@ -101,6 +101,66 @@ def test_analysis_calls_workflow_service(monkeypatch):
     }
 
 
+def test_list_models_calls_model_catalog_service(monkeypatch):
+    from backend.app.api import routes
+    from backend.app.api.schemas import ModelListResponse, ModelOption
+
+    called = {}
+
+    class FakeCatalog:
+        def list_models(self, request):
+            called["request"] = request
+            return ModelListResponse(models=[ModelOption(id="deepseek-chat")])
+
+    monkeypatch.setattr(routes, "ModelCatalogService", FakeCatalog)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/models/list",
+        json={
+            "provider": "deepseek",
+            "api_key": "secret-key",
+            "base_url": "https://api.deepseek.com",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "models": [{"id": "deepseek-chat", "owned_by": None}],
+        "warning": None,
+    }
+    assert called["request"].provider == "deepseek"
+    assert called["request"].api_key == "secret-key"
+
+
+def test_list_models_returns_controlled_warning_without_echoing_api_key(monkeypatch):
+    from backend.app.api import routes
+
+    class FakeCatalog:
+        def list_models(self, request):
+            raise RuntimeError(f"provider rejected api key {request.api_key}")
+
+    monkeypatch.setattr(routes, "ModelCatalogService", FakeCatalog)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/models/list",
+        json={
+            "provider": "openai_compatible",
+            "api_key": "secret-key",
+            "base_url": "https://example.invalid/v1",
+        },
+    )
+
+    serialized = response.text
+    assert response.status_code == 200
+    assert response.json() == {
+        "models": [],
+        "warning": "模型列表获取失败，请检查 API Key、Base URL 或手动输入模型名。",
+    }
+    assert "secret-key" not in serialized
+
+
 def test_parse_pdf_returns_extracted_text(monkeypatch):
     from backend.app.api import routes
 
