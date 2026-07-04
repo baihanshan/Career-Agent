@@ -28,18 +28,55 @@ No API key is required for local demo mode, but demo mode is deterministic and m
 
 ## Quick Start
 
-Clone the repository and start the backend:
+Clone the repository:
 
 ```bash
 git clone https://github.com/baihanshan/Career-Agent.git
 cd Career-Agent
+```
+
+### One-Command Local Launch Recommended
+
+On macOS, double-click:
+
+```text
+scripts/start_app.command
+```
+
+Or run this in a terminal:
+
+```bash
+scripts/start_app.sh
+```
+
+The launcher will:
+
+- Create the `carrer_agent` conda environment if it is missing.
+- Install missing backend and frontend dependencies.
+- Start the FastAPI backend and Next.js frontend.
+- Open `http://127.0.0.1:3000`.
+- Write logs to `.local/logs/`.
+
+Press `Ctrl+C` in the launcher terminal to stop services started by the launcher.
+
+To start without opening a browser:
+
+```bash
+scripts/start_app.sh --no-browser
+```
+
+### Manual Launch For Development
+
+If you want separate backend and frontend terminals, start the backend first:
+
+```bash
 conda create -n carrer_agent python=3.11 -y
 conda activate carrer_agent
 pip install -r requirements-dev.txt
 conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
 ```
 
-Start the frontend in another terminal:
+Then start the frontend in another terminal:
 
 ```bash
 cd Career-Agent/frontend
