@@ -198,3 +198,7 @@ The focus is a high-signal, evidence-grounded AI workflow that demonstrates agen
 ## Portfolio Summary
 
 Architecture notes and resume-ready project bullets are available in `docs/sprint2/resume-bullets.md`.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

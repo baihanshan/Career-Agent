@@ -198,3 +198,7 @@ CareerPilot Agent 当前不处理：
 ## 作品集摘要
 
 架构说明和可用于简历的项目 bullet 见 `docs/sprint2/resume-bullets.md`。
+
+## License
+
+本项目使用 [MIT License](LICENSE)。
