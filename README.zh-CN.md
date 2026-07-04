@@ -1,10 +1,10 @@
 # CareerPilot Agent
 
+**语言:** [English](README.md) | [简体中文](README.zh-CN.md)
+
 CareerPilot Agent 是一个面向中文求职者的 evidence-grounded agentic LLM application。用户提供真实个人背景材料和目标岗位 JD 后，系统会生成结构化岗位要求、匹配分析、简历要点、面试准备和岗位风险提示，并尽量把输出绑定到用户材料中的证据。
 
 项目定位是一个可展示的 AI 应用作品：后端使用 FastAPI 和 Pydantic 定义 API 与结构化数据契约，LangGraph 负责固定主流程编排，关键节点使用 tool-calling ReAct Agent 做局部多轮推理，检索层提供证据 grounding，中文 Next.js 前端承载完整用户流程。
-
-[English README](README.md)
 
 ## 核心能力
 

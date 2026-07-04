@@ -1,10 +1,10 @@
 # CareerPilot Agent
 
+**Language:** [English](README.md) | [简体中文](README.zh-CN.md)
+
 CareerPilot Agent is an evidence-grounded, agentic job application assistant for Chinese-speaking job seekers. It turns user-provided career materials and a target job description into structured job requirements, match analysis, resume bullets, interview preparation, and role-aware risk warnings.
 
 The project is built as a portfolio-ready LLM application: FastAPI and Pydantic provide the backend API contract, LangGraph orchestrates a fixed workflow, selected workflow stages use tool-calling ReAct agents, retrieval grounds outputs in user evidence, and a Chinese Next.js frontend exposes the end-to-end workflow.
-
-[中文说明](README.zh.md)
 
 ## What It Does
 
