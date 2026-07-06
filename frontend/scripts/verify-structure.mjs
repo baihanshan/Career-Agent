@@ -46,6 +46,8 @@ const windowsLauncherMarkers = [
   "Invoke-WebRequest",
   "Start-Process",
   "taskkill /PID",
+  "Show-LogTail",
+  "Get-Content -Path",
   "Test-BackendDependencies",
   "previousErrorActionPreference",
   "NEXT_PUBLIC_API_BASE_URL",
