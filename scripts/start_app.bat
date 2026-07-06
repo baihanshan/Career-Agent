@@ -1,0 +1,11 @@
+@echo off
+setlocal
+
+set "SCRIPT_DIR=%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%start_app.ps1" %*
+
+if errorlevel 1 (
+  echo.
+  echo CareerPilot Agent launcher failed. Review the message above, then press any key to close.
+  pause >nul
+)
