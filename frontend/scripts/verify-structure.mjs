@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+const repoRoot = join(process.cwd(), "..");
+
 const requiredPaths = [
   "app/page.tsx",
   "app/layout.tsx",
@@ -19,6 +21,73 @@ const missing = requiredPaths.filter((path) => !existsSync(join(process.cwd(), p
 
 if (missing.length > 0) {
   console.error(`Missing frontend files: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+const requiredLauncherPaths = [
+  "scripts/start_app.sh",
+  "scripts/start_app.command",
+  "scripts/start_app.ps1",
+  "scripts/start_app.bat",
+];
+const missingLauncherPaths = requiredLauncherPaths.filter(
+  (path) => !existsSync(join(repoRoot, path))
+);
+
+if (missingLauncherPaths.length > 0) {
+  console.error(`Missing local launcher files: ${missingLauncherPaths.join(", ")}`);
+  process.exit(1);
+}
+
+const windowsLauncher = readFileSync(join(repoRoot, "scripts/start_app.ps1"), "utf8");
+const windowsLauncherBat = readFileSync(join(repoRoot, "scripts/start_app.bat"), "utf8");
+const windowsLauncherMarkers = [
+  "Get-NetTCPConnection",
+  "Invoke-WebRequest",
+  "Start-Process",
+  "taskkill /PID",
+  "NEXT_PUBLIC_API_BASE_URL",
+  ".local\\logs",
+  "conda.exe",
+  "npm run dev",
+];
+const missingWindowsLauncherMarkers = windowsLauncherMarkers.filter(
+  (marker) => !windowsLauncher.includes(marker)
+);
+
+if (
+  missingWindowsLauncherMarkers.length > 0 ||
+  !windowsLauncherBat.includes("ExecutionPolicy Bypass") ||
+  !windowsLauncherBat.includes("start_app.ps1")
+) {
+  console.error(
+    `Windows launcher must cover startup, health checks, cleanup, and bat delegation: ${missingWindowsLauncherMarkers.join(
+      ", "
+    )}`
+  );
+  process.exit(1);
+}
+
+const englishReadme = readFileSync(join(repoRoot, "README.md"), "utf8");
+const chineseReadme = readFileSync(join(repoRoot, "README.zh-CN.md"), "utf8");
+const launcherReadmeMarkers = [
+  ["scripts/start_app.command"],
+  ["scripts/start_app.sh"],
+  ["scripts/start_app.bat", "scripts\\start_app.bat"],
+  ["scripts/start_app.ps1", "scripts\\start_app.ps1"],
+];
+const missingLauncherReadmeMarkers = launcherReadmeMarkers.filter(
+  (markers) =>
+    !markers.some((marker) => englishReadme.includes(marker)) ||
+    !markers.some((marker) => chineseReadme.includes(marker))
+);
+
+if (missingLauncherReadmeMarkers.length > 0) {
+  console.error(
+    `README quick start must document all local launchers: ${missingLauncherReadmeMarkers
+      .map((markers) => markers[0])
+      .join(", ")}`
+  );
   process.exit(1);
 }
 

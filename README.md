@@ -49,6 +49,18 @@ Or run this in a terminal:
 scripts/start_app.sh
 ```
 
+On Windows, double-click:
+
+```text
+scripts\start_app.bat
+```
+
+Or run this in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1
+```
+
 The launcher will:
 
 - Create the `carrer_agent` conda environment if it is missing.
@@ -67,10 +79,22 @@ To start without opening a browser:
 scripts/start_app.sh --no-browser
 ```
 
-Useful environment overrides:
+On Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -NoBrowser
+```
+
+Useful macOS/Linux environment overrides:
 
 ```bash
 CONDA_ENV=carrer_agent BACKEND_PORT=8000 FRONTEND_PORT=3000 scripts/start_app.sh
+```
+
+Useful Windows parameter overrides:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -CondaEnv carrer_agent -BackendPort 8000 -FrontendPort 3000
 ```
 
 If a port is already in use but the expected service is not healthy, the launcher will stop and tell you which port to free or override.

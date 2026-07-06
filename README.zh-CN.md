@@ -43,10 +43,22 @@ macOS 可以双击：
 scripts/start_app.command
 ```
 
-也可以在终端运行：
+或在终端运行：
 
 ```bash
 scripts/start_app.sh
+```
+
+Windows 可以双击：
+
+```text
+scripts\start_app.bat
+```
+
+或在 PowerShell 运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1
 ```
 
 启动器会自动：
@@ -67,10 +79,22 @@ scripts/start_app.sh
 scripts/start_app.sh --no-browser
 ```
 
-常用环境变量覆盖：
+Windows PowerShell：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -NoBrowser
+```
+
+macOS/Linux 常用环境变量覆盖：
 
 ```bash
 CONDA_ENV=carrer_agent BACKEND_PORT=8000 FRONTEND_PORT=3000 scripts/start_app.sh
+```
+
+Windows 常用参数覆盖：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -CondaEnv carrer_agent -BackendPort 8000 -FrontendPort 3000
 ```
 
 如果端口已被占用但对应服务不健康，启动器会停止并提示你释放端口或换一个端口。
