@@ -371,9 +371,9 @@ class EvaluationReport(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
-    profile_documents: list[ProfileDocument]
-    job_description: str
-    run_config: RunConfig = Field(default_factory=RunConfig)
+    profile_documents: list[ProfileDocument] # 用户的简历/项目文档
+    job_description: str                     # 目标岗位的 JD 文本
+    run_config: RunConfig = Field(default_factory=RunConfig)# 运行配置
 
     @field_validator("job_description")
     @classmethod
