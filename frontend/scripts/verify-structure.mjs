@@ -46,6 +46,8 @@ const windowsLauncherMarkers = [
   "Invoke-WebRequest",
   "Start-Process",
   "taskkill /PID",
+  "Test-BackendDependencies",
+  "previousErrorActionPreference",
   "NEXT_PUBLIC_API_BASE_URL",
   ".local\\logs",
   "conda.exe",
@@ -57,6 +59,9 @@ const missingWindowsLauncherMarkers = windowsLauncherMarkers.filter(
 
 if (
   missingWindowsLauncherMarkers.length > 0 ||
+  windowsLauncher.includes(
+    '& $CondaBin run -n $CondaEnv python -c "import fastapi, uvicorn" *> $null'
+  ) ||
   !windowsLauncherBat.includes("ExecutionPolicy Bypass") ||
   !windowsLauncherBat.includes("start_app.ps1")
 ) {

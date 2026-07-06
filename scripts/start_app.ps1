@@ -106,6 +106,26 @@ function Wait-ForUrl {
     throw "$Label did not become ready at $Url"
 }
 
+function Test-BackendDependencies {
+    param([string]$CondaBin)
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Missing Python packages write a traceback to stderr. In Windows PowerShell,
+        # that can become NativeCommandError and stop the launcher before install runs.
+        $ErrorActionPreference = "Continue"
+        $probeCommand = "import fastapi, uvicorn"
+        & $CondaBin run -n $CondaEnv python -c $probeCommand *> $null
+        return $LASTEXITCODE -eq 0
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
 function Ensure-BackendEnvironment {
     param([string]$CondaBin)
 
@@ -126,8 +146,7 @@ function Ensure-BackendEnvironment {
         }
     }
 
-    & $CondaBin run -n $CondaEnv python -c "import fastapi, uvicorn" *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if (-not (Test-BackendDependencies $CondaBin)) {
         Write-Host "Installing backend dependencies into conda environment: $CondaEnv"
         & $CondaBin run -n $CondaEnv pip install -r (Join-Path $RootDir "requirements-dev.txt")
         if ($LASTEXITCODE -ne 0) {
