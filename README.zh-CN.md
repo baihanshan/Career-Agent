@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1
 - 启动 FastAPI 后端和 Next.js 前端。
 - 打开 `http://127.0.0.1:3000`。
 - 如果健康的后端或前端已经在运行，会直接复用。
-- 将后端日志写入 `.local/logs/backend.log`。
+- macOS/Linux 将后端日志写入 `.local/logs/backend.log`；Windows 将后端日志写入 `.local/logs/backend.out.log` 和 `.local/logs/backend.err.log`。
 - 将前端日志写入 `.local/logs/frontend.log`。
 
 停止应用时，在启动器终端按 `Ctrl+C`。

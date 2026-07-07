@@ -68,7 +68,7 @@ The launcher will:
 - Start the FastAPI backend and Next.js frontend.
 - Open `http://127.0.0.1:3000`.
 - Reuse an already healthy backend or frontend if one is running.
-- Write backend logs to `.local/logs/backend.log`.
+- Write backend logs to `.local/logs/backend.log` on macOS/Linux, or `.local/logs/backend.out.log` and `.local/logs/backend.err.log` on Windows.
 - Write frontend logs to `.local/logs/frontend.log`.
 
 Press `Ctrl+C` in the launcher terminal to stop services started by the launcher.
