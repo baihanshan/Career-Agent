@@ -46,6 +46,8 @@ const windowsLauncherMarkers = [
   "Invoke-WebRequest",
   "Start-Process",
   "taskkill /PID",
+  "Show-LogTail",
+  "Get-Content -Path",
   "Test-BackendDependencies",
   "previousErrorActionPreference",
   "NEXT_PUBLIC_API_BASE_URL",
@@ -56,19 +58,31 @@ const windowsLauncherMarkers = [
 const missingWindowsLauncherMarkers = windowsLauncherMarkers.filter(
   (marker) => !windowsLauncher.includes(marker)
 );
+const invalidPowerShellColonVariables = [
+  ...windowsLauncher.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*):/g),
+]
+  .map((match) => match[1])
+  .filter(
+    (name) =>
+      !["env", "script", "global", "local", "private", "using"].includes(
+        name.toLowerCase()
+      )
+  );
 
 if (
   missingWindowsLauncherMarkers.length > 0 ||
   windowsLauncher.includes(
     '& $CondaBin run -n $CondaEnv python -c "import fastapi, uvicorn" *> $null'
   ) ||
+  invalidPowerShellColonVariables.length > 0 ||
   !windowsLauncherBat.includes("ExecutionPolicy Bypass") ||
   !windowsLauncherBat.includes("start_app.ps1")
 ) {
   console.error(
-    `Windows launcher must cover startup, health checks, cleanup, and bat delegation: ${missingWindowsLauncherMarkers.join(
-      ", "
-    )}`
+    `Windows launcher must cover startup, health checks, cleanup, and bat delegation: ${[
+      ...missingWindowsLauncherMarkers,
+      ...invalidPowerShellColonVariables.map((name) => `$${name}:`),
+    ].join(", ")}`
   );
   process.exit(1);
 }

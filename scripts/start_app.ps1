@@ -89,20 +89,54 @@ function Test-UrlOk {
     }
 }
 
+function Show-LogTail {
+    param(
+        [string]$LogFile,
+        [int]$LineCount = 80
+    )
+
+    if (-not (Test-Path $LogFile)) {
+        Write-Host "Log file does not exist yet: $LogFile"
+        return
+    }
+
+    Write-Host ""
+    Write-Host "Last $LineCount log lines from ${LogFile}:"
+    Write-Host "----------------------------------------"
+    Get-Content -Path $LogFile -Tail $LineCount
+    Write-Host "----------------------------------------"
+}
+
 function Wait-ForUrl {
     param(
         [string]$Url,
         [string]$Label,
-        [int]$Attempts = 90
+        [int]$Attempts = 90,
+        [string]$LogFile = "",
+        [System.Diagnostics.Process]$Process = $null
     )
 
     for ($i = 0; $i -lt $Attempts; $i++) {
         if (Test-UrlOk $Url) {
             return
         }
+
+        if ($null -ne $Process) {
+            $Process.Refresh()
+            if ($Process.HasExited) {
+                if ($LogFile) {
+                    Show-LogTail $LogFile
+                }
+                throw "$Label process exited before $Url became ready. Exit code: $($Process.ExitCode)"
+            }
+        }
+
         Start-Sleep -Seconds 1
     }
 
+    if ($LogFile) {
+        Show-LogTail $LogFile
+    }
     throw "$Label did not become ready at $Url"
 }
 
@@ -194,7 +228,7 @@ function Start-Backend {
         -PassThru `
         -WindowStyle Hidden
 
-    Wait-ForUrl "$BackendUrl/health" "Backend"
+    Wait-ForUrl "$BackendUrl/health" "Backend" 120 $logFile $script:BackendProcess
 }
 
 function Start-Frontend {
@@ -218,7 +252,7 @@ function Start-Frontend {
         -PassThru `
         -WindowStyle Hidden
 
-    Wait-ForUrl $FrontendUrl "Frontend"
+    Wait-ForUrl $FrontendUrl "Frontend" 120 $logFile $script:FrontendProcess
 }
 
 function Stop-StartedProcesses {
