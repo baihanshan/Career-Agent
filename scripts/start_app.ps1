@@ -101,7 +101,7 @@ function Show-LogTail {
     }
 
     Write-Host ""
-    Write-Host "Last $LineCount log lines from $LogFile:"
+    Write-Host "Last $LineCount log lines from ${LogFile}:"
     Write-Host "----------------------------------------"
     Get-Content -Path $LogFile -Tail $LineCount
     Write-Host "----------------------------------------"
