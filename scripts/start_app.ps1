@@ -107,12 +107,23 @@ function Show-LogTail {
     Write-Host "----------------------------------------"
 }
 
+function Show-ProcessLogs {
+    param(
+        [string[]]$LogFiles,
+        [int]$LineCount = 80
+    )
+
+    foreach ($logFile in $LogFiles) {
+        Show-LogTail $logFile $LineCount
+    }
+}
+
 function Wait-ForUrl {
     param(
         [string]$Url,
         [string]$Label,
         [int]$Attempts = 90,
-        [string]$LogFile = "",
+        [string[]]$LogFiles = @(),
         [System.Diagnostics.Process]$Process = $null
     )
 
@@ -124,8 +135,8 @@ function Wait-ForUrl {
         if ($null -ne $Process) {
             $Process.Refresh()
             if ($Process.HasExited) {
-                if ($LogFile) {
-                    Show-LogTail $LogFile
+                if ($LogFiles.Count -gt 0) {
+                    Show-ProcessLogs $LogFiles
                 }
                 throw "$Label process exited before $Url became ready. Exit code: $($Process.ExitCode)"
             }
@@ -134,8 +145,8 @@ function Wait-ForUrl {
         Start-Sleep -Seconds 1
     }
 
-    if ($LogFile) {
-        Show-LogTail $LogFile
+    if ($LogFiles.Count -gt 0) {
+        Show-ProcessLogs $LogFiles
     }
     throw "$Label did not become ready at $Url"
 }
@@ -208,7 +219,8 @@ function Ensure-FrontendEnvironment {
 function Start-Backend {
     param([string]$CondaBin)
 
-    $logFile = Join-Path $LogDir "backend.log"
+    $stdoutLogFile = Join-Path $LogDir "backend.out.log"
+    $stderrLogFile = Join-Path $LogDir "backend.err.log"
 
     if (Test-UrlOk "$BackendUrl/health") {
         Write-Host "Backend is already running at $BackendUrl"
@@ -220,15 +232,24 @@ function Start-Backend {
     }
 
     Write-Host "Starting backend at $BackendUrl"
-    $command = "`"$CondaBin`" run -n $CondaEnv uvicorn backend.app.main:app --reload --log-level debug --host $HostName --port $BackendPort >> `"$logFile`" 2>&1"
+    $arguments = @(
+        "run", "-n", $CondaEnv,
+        "uvicorn", "backend.app.main:app",
+        "--reload",
+        "--log-level", "debug",
+        "--host", $HostName,
+        "--port", "$BackendPort"
+    )
     $script:BackendProcess = Start-Process `
-        -FilePath "cmd.exe" `
-        -ArgumentList @("/c", $command) `
+        -FilePath $CondaBin `
+        -ArgumentList $arguments `
         -WorkingDirectory $RootDir `
+        -RedirectStandardOutput $stdoutLogFile `
+        -RedirectStandardError $stderrLogFile `
         -PassThru `
         -WindowStyle Hidden
 
-    Wait-ForUrl "$BackendUrl/health" "Backend" 120 $logFile $script:BackendProcess
+    Wait-ForUrl "$BackendUrl/health" "Backend" 120 @($stdoutLogFile, $stderrLogFile) $script:BackendProcess
 }
 
 function Start-Frontend {
@@ -252,7 +273,7 @@ function Start-Frontend {
         -PassThru `
         -WindowStyle Hidden
 
-    Wait-ForUrl $FrontendUrl "Frontend" 120 $logFile $script:FrontendProcess
+    Wait-ForUrl $FrontendUrl "Frontend" 120 @($logFile) $script:FrontendProcess
 }
 
 function Stop-StartedProcesses {
@@ -296,7 +317,8 @@ try {
     Write-Host "  Backend:  $BackendUrl"
     Write-Host ""
     Write-Host "Logs:"
-    Write-Host "  $(Join-Path $LogDir "backend.log")"
+    Write-Host "  $(Join-Path $LogDir "backend.out.log")"
+    Write-Host "  $(Join-Path $LogDir "backend.err.log")"
     Write-Host "  $(Join-Path $LogDir "frontend.log")"
     Write-Host ""
     Write-Host "Press Ctrl+C in this terminal to stop services started by this launcher."

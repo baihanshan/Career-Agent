@@ -48,6 +48,8 @@ const windowsLauncherMarkers = [
   "taskkill /PID",
   "Show-LogTail",
   "Get-Content -Path",
+  "RedirectStandardOutput",
+  "RedirectStandardError",
   "Test-BackendDependencies",
   "previousErrorActionPreference",
   "NEXT_PUBLIC_API_BASE_URL",
@@ -73,6 +75,9 @@ if (
   missingWindowsLauncherMarkers.length > 0 ||
   windowsLauncher.includes(
     '& $CondaBin run -n $CondaEnv python -c "import fastapi, uvicorn" *> $null'
+  ) ||
+  windowsLauncher.includes(
+    '$command = "`"$CondaBin`" run -n $CondaEnv uvicorn backend.app.main:app'
   ) ||
   invalidPowerShellColonVariables.length > 0 ||
   !windowsLauncherBat.includes("ExecutionPolicy Bypass") ||
