@@ -45,9 +45,9 @@ function Find-Conda {
     }
 
     $candidates = @(
-        Join-Path $env:USERPROFILE "miniforge3\Scripts\conda.exe",
-        Join-Path $env:USERPROFILE "miniconda3\Scripts\conda.exe",
-        Join-Path $env:USERPROFILE "anaconda3\Scripts\conda.exe"
+        (Join-Path $env:USERPROFILE "miniforge3\Scripts\conda.exe")
+        (Join-Path $env:USERPROFILE "miniconda3\Scripts\conda.exe")
+        (Join-Path $env:USERPROFILE "anaconda3\Scripts\conda.exe")
     )
 
     foreach ($candidate in $candidates) {
