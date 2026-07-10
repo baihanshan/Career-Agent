@@ -56,21 +56,33 @@ def test_bind_react_tools_supports_test_models_without_parallel_keyword():
     assert model.calls == [["search"]]
 
 
-def test_deepseek_provider_uses_json_mode_for_structured_output():
-    output_schema = create_model("DeepSeekOutput", value=(str, ...))
-    chat_model_cls = react_model._load_chat_openai("deepseek")
-    model = chat_model_cls(
-        model="deepseek-test",
-        api_key="test-key",
-        base_url="https://example.invalid",
+def test_deepseek_loader_returns_the_provider_specific_chat_model():
+    chat_model_cls = react_model._load_chat_deepseek()
+
+    assert chat_model_cls.__name__ == "ChatDeepSeek"
+    assert chat_model_cls.__module__ == "langchain_deepseek.chat_models"
+
+
+def test_deepseek_factory_uses_provider_adapter_with_thinking_disabled(monkeypatch):
+    monkeypatch.setattr(
+        react_model,
+        "_load_chat_deepseek",
+        lambda: _RecordingChatModel,
     )
 
-    runnable = model.with_structured_output(output_schema)
+    model = ReActModelFactory().create(
+        RunConfig(
+            provider="deepseek",
+            model="deepseek-v4-flash",
+            api_key="deepseek-key",
+            base_url="https://api.deepseek.com/",
+        )
+    )
 
-    assert runnable.first.kwargs["response_format"] == {"type": "json_object"}
-    assert runnable.first.kwargs["ls_structured_output_format"]["kwargs"] == {
-        "method": "json_mode"
-    }
+    assert model.config["base_url"] == "https://api.deepseek.com"
+    assert model.config["timeout"] == 180
+    assert "request_timeout" not in model.config
+    assert model.config["extra_body"] == {"thinking": {"type": "disabled"}}
 
 
 def test_react_response_format_uses_schema_only_for_openai_provider_models():
@@ -98,12 +110,13 @@ def test_react_response_format_uses_schema_only_for_openai_provider_models():
 
 
 @pytest.mark.parametrize(
-    ("run_config", "expected_model", "expected_base_url"),
+    ("run_config", "expected_model", "expected_base_url", "expected_timeout_key"),
     [
         (
             RunConfig(provider="openai", model="default", api_key="openai-key"),
             "gpt-4.1",
             None,
+            "request_timeout",
         ),
         (
             RunConfig(
@@ -114,6 +127,7 @@ def test_react_response_format_uses_schema_only_for_openai_provider_models():
             ),
             "deepseek-v4-flash",
             "https://api.deepseek.com",
+            "timeout",
         ),
         (
             RunConfig(
@@ -124,6 +138,7 @@ def test_react_response_format_uses_schema_only_for_openai_provider_models():
             ),
             "custom-tool-model",
             "https://models.example.com/v1",
+            "request_timeout",
         ),
     ],
 )
@@ -131,14 +146,19 @@ def test_factory_builds_provider_chat_model(
     run_config,
     expected_model,
     expected_base_url,
+    expected_timeout_key,
 ):
     model = ReActModelFactory(chat_model_cls=_RecordingChatModel).create(run_config)
 
     assert model.config["model"] == expected_model
     assert model.config["api_key"] == run_config.api_key
     assert model.config["temperature"] == run_config.temperature
-    assert model.config["request_timeout"] == 180
+    assert model.config[expected_timeout_key] == 180
     assert model.config.get("base_url") == expected_base_url
+    if run_config.provider == "deepseek":
+        assert model.config["extra_body"] == {"thinking": {"type": "disabled"}}
+    else:
+        assert "extra_body" not in model.config
     assert model.bound_tools == []
 
 

@@ -36,3 +36,14 @@ def test_windows_launcher_conda_fallback_paths_are_single_expressions():
         conda_path = f'{conda_dir}\\Scripts\\conda.exe'
         assert f'Join-Path $env:USERPROFILE "{conda_path}",' not in launcher
         assert f'(Join-Path $env:USERPROFILE "{conda_path}")' in launcher
+
+
+def test_launchers_verify_the_deepseek_runtime_dependency():
+    root = Path(__file__).resolve().parents[2]
+
+    macos_linux_launcher = (root / "scripts" / "start_app.sh").read_text()
+    windows_launcher = (root / "scripts" / "start_app.ps1").read_text()
+
+    expected_probe = "import fastapi, uvicorn, langchain_deepseek"
+    assert expected_probe in macos_linux_launcher
+    assert expected_probe in windows_launcher

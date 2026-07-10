@@ -58,13 +58,18 @@ class ReActModelFactory:
                 "An API key is required to create a ReAct tool-calling model."
             )
 
-        chat_model_cls = self._chat_model_cls or _load_chat_openai(run_config.provider)
         kwargs: dict[str, Any] = {
             "model": _model_name(run_config),
             "api_key": run_config.api_key,
             "temperature": run_config.temperature,
-            "request_timeout": LLM_REQUEST_TIMEOUT_SECONDS,
         }
+        if run_config.provider == "deepseek":
+            chat_model_cls = self._chat_model_cls or _load_chat_deepseek()
+            kwargs["timeout"] = LLM_REQUEST_TIMEOUT_SECONDS
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+        else:
+            chat_model_cls = self._chat_model_cls or _load_chat_openai(run_config.provider)
+            kwargs["request_timeout"] = LLM_REQUEST_TIMEOUT_SECONDS
         base_url = _base_url(run_config)
         if base_url is not None:
             kwargs["base_url"] = base_url
@@ -102,17 +107,17 @@ def _load_chat_openai(provider: str) -> Callable[..., Any]:
         raise ReActModelUnavailableError(
             "langchain-openai is required for the ReAct ChatModel runtime."
         ) from exc
-    if provider != "deepseek":
-        return ChatOpenAI
+    return ChatOpenAI
 
-    class DeepSeekChatOpenAI(ChatOpenAI):
-        """Use DeepSeek's supported JSON Object mode for Pydantic output."""
 
-        def with_structured_output(self, schema=None, **kwargs):
-            kwargs.setdefault("method", "json_mode")
-            return super().with_structured_output(schema, **kwargs)
-
-    return DeepSeekChatOpenAI
+def _load_chat_deepseek() -> Callable[..., Any]:
+    try:
+        from langchain_deepseek import ChatDeepSeek
+    except ImportError as exc:
+        raise ReActModelUnavailableError(
+            "langchain-deepseek is required for the DeepSeek ReAct runtime."
+        ) from exc
+    return ChatDeepSeek
 
 
 def _model_name(run_config: RunConfig) -> str:

@@ -159,7 +159,7 @@ function Test-BackendDependencies {
         # Missing Python packages write a traceback to stderr. In Windows PowerShell,
         # that can become NativeCommandError and stop the launcher before install runs.
         $ErrorActionPreference = "Continue"
-        $probeCommand = "import fastapi, uvicorn"
+        $probeCommand = "import fastapi, uvicorn, langchain_deepseek"
         & $CondaBin run -n $CondaEnv python -c $probeCommand *> $null
         return $LASTEXITCODE -eq 0
     }
