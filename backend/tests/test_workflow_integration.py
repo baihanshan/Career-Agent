@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from backend.app.api.schemas import AnalysisRequest
 from backend.app.documents.models import ProfileDocument
@@ -9,6 +10,7 @@ from backend.app.retrieval.vector_store import InMemoryVectorStore
 from backend.app.workflow.graph import WORKFLOW_NODE_ORDER, build_analysis_graph, run_workflow
 from backend.app.workflow.nodes import WorkflowServices
 from backend.app.workflow.react_tools import REACT_AGENT_TOOL_ALLOWLIST
+from backend.app.workflow import service as workflow_service
 from backend.app.workflow.service import _default_services
 
 
@@ -157,6 +159,14 @@ def test_default_services_keep_deterministic_client_without_api_key(monkeypatch)
     services = _default_services(_request().run_config)
 
     assert services.llm_service.client.__class__.__name__ == "_DeterministicWorkflowLLMClient"
+
+
+def test_default_chroma_path_is_project_local(monkeypatch):
+    monkeypatch.delenv("CHROMA_PATH", raising=False)
+
+    expected = Path(__file__).resolve().parents[2] / ".local" / "chroma"
+
+    assert Path(workflow_service._chroma_persist_path()) == expected
 
 
 def _contains_chinese(text: str) -> bool:
