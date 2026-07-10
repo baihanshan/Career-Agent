@@ -101,6 +101,23 @@ def project(c: canvas.Canvas, y: float, role: str, name: str, date: str, bullets
     return y - 2
 
 
+def structured_project(
+    c: canvas.Canvas,
+    y: float,
+    role: str,
+    name: str,
+    date: str,
+    sections: list[tuple[str, str]],
+) -> float:
+    draw_bold(c, LEFT, y, role, 8.2)
+    draw_bold(c, LEFT + 178, y, name, 8.2)
+    draw_bold(c, PAGE_W - RIGHT - text_width(date, 8.2), y, date, 8.2)
+    y -= 11.5
+    for label, body in sections:
+        y = paragraph(c, LEFT, y, f"{label}：{body}", 7.25, PAGE_W - LEFT - RIGHT - 8, 10.25)
+    return y - 2
+
+
 def internship(c: canvas.Canvas, y: float) -> float:
     draw_bold(c, LEFT, y, "人工智能实习生", 8.2)
     draw_bold(c, LEFT + 198, y, "腾讯混元部门多模态团队，中国深圳", 8.2)
@@ -141,17 +158,25 @@ def build() -> None:
     draw_text(c, LEFT + 318, y, "GPA：3.3", 8.2)
 
     y = section(c, y - 14, "项目经历")
-    y = project(
+    y = structured_project(
         c,
         y,
         "项目负责人/全栈开发",
         "CareerPilot Agent：求职材料 Agentic LLM 应用",
         "2026 年 6 月 - 2026 年 7 月",
         [
-            "独立设计并实现面向求职者的 AI 求职助手，用户输入个人材料与目标 JD 后，系统生成岗位匹配摘要、3 条证据支撑简历要点、面试准备和风险提示。",
-            "采用 FastAPI、Next.js、Pydantic 与 LangGraph 搭建前后端和固定主流程，覆盖输入解析、简历索引、JD 分析、证据检索、内容生成、风险审计和公开输出。",
-            "实现局部 ReAct 多 Agent 架构：简历证据 Agent 通过工具检索材料，面试准备 Agent 区分 JD 能力考察与简历深挖，风险审计 Agent 进行岗位类型感知复核。",
-            "接入 BGE embedding 与 Chroma 向量库，按项目/实习/技能/教育结构化切分简历；通过 Public Output Gate、证据 ID 规范化和质量门禁防止内部 ID 泄露与生成内容失真。",
+            (
+                "项目介绍",
+                "本项目是面向求职者的 Agentic LLM 应用，用户输入个人材料和目标岗位 JD 后，系统基于真实材料证据生成岗位匹配摘要、3 条简历要点、面试准备和风险提示。",
+            ),
+            (
+                "个人贡献",
+                "1. 独立搭建 FastAPI 后端、Next.js 中文前端与 Pydantic 数据模型。2. 设计 LangGraph 固定主流程，覆盖输入解析、简历索引、JD 分析、证据检索、内容生成、风险审计和公开输出。3. 实现局部 ReAct 多 Agent 架构：简历证据 Agent 调用工具检索材料，面试准备 Agent 区分 JD 能力考察与简历深挖，风险审计 Agent 进行岗位类型感知复核。4. 接入 BGE embedding 与 Chroma 向量库，按项目/实习/技能/教育结构化切分简历，并通过证据 ID 规范化、质量门禁和 Public Output Gate 防止内部 ID 泄露与生成失真。",
+            ),
+            (
+                "项目成果",
+                "完成可本地运行的 Web App，支持 PDF 文本解析、OpenAI/DeepSeek/OpenAI-compatible/本地演示模式、一键启动和 Agent trace 展示；后端测试、前端检查与构建通过，形成完整的 evidence-grounded LLM workflow 工程作品。",
+            ),
         ],
     )
     y = project(

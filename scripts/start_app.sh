@@ -137,7 +137,7 @@ ensure_backend_environment() {
     "$conda_bin" create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y
   fi
 
-  if ! "$conda_bin" run -n "$CONDA_ENV" python -c "import fastapi, uvicorn" >/dev/null 2>&1; then
+  if ! "$conda_bin" run -n "$CONDA_ENV" python -c "import fastapi, uvicorn, langchain_deepseek" >/dev/null 2>&1; then
     echo "Installing backend dependencies into conda environment: $CONDA_ENV"
     "$conda_bin" run -n "$CONDA_ENV" pip install -r "$ROOT_DIR/requirements-dev.txt"
   fi
