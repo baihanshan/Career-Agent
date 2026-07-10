@@ -26,20 +26,21 @@ def test_health_returns_ok():
     assert response.json() == {"status": "ok"}
 
 
-def test_allows_local_frontend_cors_preflight():
+@pytest.mark.parametrize("origin", ["http://localhost:3000", "http://127.0.0.1:3001"])
+def test_allows_local_frontend_cors_preflight(origin):
     client = TestClient(create_app())
 
     response = client.options(
         "/analysis",
         headers={
-            "Origin": "http://localhost:3000",
+            "Origin": origin,
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type",
         },
     )
 
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert response.headers["access-control-allow-origin"] == origin
 
 
 def test_analysis_rejects_empty_profile_documents():

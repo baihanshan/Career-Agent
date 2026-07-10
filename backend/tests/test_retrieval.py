@@ -31,6 +31,15 @@ def test_bge_embedding_client_reads_model_environment(monkeypatch):
     assert client.cache_dir == "/tmp/test-bge-cache"
 
 
+def test_bge_embedding_client_uses_project_local_cache_by_default(monkeypatch):
+    monkeypatch.delenv("BGE_MODEL_CACHE_DIR", raising=False)
+
+    client = BGEEmbeddingClient(mock_dimension=2)
+    expected = Path(__file__).resolve().parents[2] / ".local" / "bge-models"
+
+    assert Path(client.cache_dir) == expected
+
+
 def test_index_profile_returns_index_id():
     service = RetrievalService(
         embedding_client=FakeEmbeddingClient(),
@@ -339,3 +348,4 @@ def _matches_where(metadata, where):
         elif metadata.get(key) != value:
             return False
     return True
+from pathlib import Path

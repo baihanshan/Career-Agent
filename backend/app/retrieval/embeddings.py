@@ -5,12 +5,15 @@ import os
 import re
 from collections import Counter
 from math import sqrt
+from pathlib import Path
 from typing import Sequence
 
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 DEFAULT_BGE_MODEL_NAME = "BAAI/bge-large-zh-v1.5"
-DEFAULT_BGE_MODEL_CACHE_DIR = "/Users/baihanshan/Desktop/bge-models"
+DEFAULT_BGE_MODEL_CACHE_DIR = str(
+    Path(__file__).resolve().parents[3] / ".local" / "bge-models"
+)
 
 
 class FakeEmbeddingClient:

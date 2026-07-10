@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -60,10 +61,7 @@ def _default_retrieval_service() -> RetrievalService:
             embedding_client=BGEEmbeddingClient(),
             vector_store=ChromaVectorStore(
                 collection_name=f"analysis_{uuid4().hex}",
-                persist_path=os.getenv(
-                    "CHROMA_PATH",
-                    "/Users/baihanshan/Desktop/career-agent-chroma",
-                ),
+                persist_path=_chroma_persist_path(),
             ),
         )
     except RuntimeError:
@@ -75,6 +73,13 @@ def _fake_retrieval_service() -> RetrievalService:
         embedding_client=FakeEmbeddingClient(),
         vector_store=InMemoryVectorStore(),
     )
+
+
+def _chroma_persist_path() -> str:
+    configured_path = os.getenv("CHROMA_PATH", "").strip()
+    if configured_path:
+        return configured_path
+    return str(Path(__file__).resolve().parents[3] / ".local" / "chroma")
 
 
 def _default_llm_client(run_config: RunConfig):
