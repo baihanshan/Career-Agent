@@ -92,7 +92,7 @@ def _default_llm_client(run_config: RunConfig):
         )
 
     if run_config.provider == "deepseek" and run_config.api_key:
-        model = run_config.model if run_config.model != "default" else "deepseek-v4-flash"
+        model = run_config.model if run_config.model != "default" else "deepseek-v4-pro"
         return OpenAICompatibleChatClient(
             api_key=run_config.api_key,
             model=model,

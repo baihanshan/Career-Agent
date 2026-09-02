@@ -29,7 +29,7 @@ const PROVIDER_DEFAULTS: Record<
     baseUrl: "",
   },
   deepseek: {
-    model: "deepseek-v4-flash",
+    model: "deepseek-v4-pro",
     baseUrl: "https://api.deepseek.com",
   },
   openai_compatible: {
@@ -132,7 +132,7 @@ export function LlmSettings({ value, onChange }: LlmSettingsProps) {
           list={modelOptions.length > 0 ? datalistId : undefined}
           value={value.model}
           onChange={(event) => update({ model: event.target.value })}
-          placeholder="deepseek-v4-flash"
+          placeholder="deepseek-v4-pro"
         />
         <datalist id={datalistId}>
           {modelOptions.map((model) => (

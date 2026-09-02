@@ -660,7 +660,7 @@ def test_openai_compatible_chat_client_posts_to_deepseek_chat_completions():
     assert request.url == "https://api.deepseek.com/chat/completions"
     assert request.headers["authorization"] == "Bearer deepseek-key"
     payload = request.read().decode()
-    assert '"model":"deepseek-v4-flash"' in payload
+    assert '"model":"deepseek-v4-pro"' in payload
     assert '"temperature":0.3' in payload
     assert '"response_format":{"type":"json_object"}' in payload
     assert "Return JSON only." in payload

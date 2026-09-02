@@ -23,7 +23,7 @@ const LLM_SETTINGS_STORAGE_KEY = "careerpilot.llmSettings";
 const DEFAULT_LLM_SETTINGS: LlmSettingsValue = {
   provider: "deepseek",
   apiKey: "",
-  model: "deepseek-v4-flash",
+  model: "deepseek-v4-pro",
   baseUrl: "https://api.deepseek.com",
   temperature: 0.2,
 };
