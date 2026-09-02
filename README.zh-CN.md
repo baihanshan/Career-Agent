@@ -35,6 +35,35 @@ git clone https://github.com/baihanshan/Career-Agent.git
 cd Career-Agent
 ```
 
+### Docker 启动（推荐给面试官 / 协作者）
+
+在任何机器（macOS / Windows / Linux）上最快跑起来的方式是 Docker。默认以 **fake 检索 + 本地演示模式** 启动——无需下载 BGE 模型、无需 API key。
+
+前置条件：安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。
+
+```bash
+docker compose up --build
+```
+
+然后打开：
+
+```text
+http://localhost:3000
+```
+
+首次构建会下载基础镜像和依赖，可能需要几分钟。
+
+停止：
+
+```bash
+docker compose down
+```
+
+说明：
+
+- Docker 默认使用 `RETRIEVAL_BACKEND=fake`（词频计数 embedding + 内存向量库），因此可秒启动、无需下载 BGE 模型。如需真实 BGE + Chroma 检索，请用本机启动脚本运行。
+- 无需 API key——应用会回退到内置的本地演示模式。如需真实模型，请在 `docker-compose.yml` 的 `backend` 服务里添加 `OPENAI_API_KEY`（或 DeepSeek 配置）。
+
 ### 一键本地启动（推荐）
 
 macOS 可以双击：
