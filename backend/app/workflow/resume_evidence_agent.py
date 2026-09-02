@@ -244,7 +244,9 @@ def _invocation_prompt(state: AnalysisState, retry_feedback: str) -> str:
 
 
 def _recursion_limit(max_steps: int, requirement_count: int) -> int:
-    return max(max_steps * 2 + 4, requirement_count * 4 + 12, 30)
+    # 硬上限：原公式会随 JD 要求数线性膨胀（16 个要求时达到 76 步），
+    # 导致 ReAct 智能体过度探索、单次分析耗时十几分钟。收紧到 [20, 32]。
+    return min(max(max_steps * 2 + 4, requirement_count * 2 + 8, 20), 32)
 
 
 def _parse_final_selections(result: dict[str, Any]) -> list[EvidenceSelection]:
