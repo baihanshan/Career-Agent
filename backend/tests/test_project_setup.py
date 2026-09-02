@@ -21,8 +21,10 @@ def test_sprint2_local_retrieval_configuration_is_documented():
         assert dependency in pyproject
 
     assert "BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5" in env_example
-    assert "BGE_MODEL_CACHE_DIR=/Users/baihanshan/Desktop/bge-models" in env_example
-    assert "CHROMA_PATH=/Users/baihanshan/Desktop/career-agent-chroma" in env_example
+    assert "BGE_MODEL_CACHE_DIR=" in env_example
+    assert "CHROMA_PATH=" in env_example
+    # 环境变量模板不应包含本机绝对路径，保证其他机器可复现
+    assert "/Users/" not in env_example
     assert "BGE_MODEL_CACHE_DIR" in readme
     assert "CHROMA_PATH" in readme
 
