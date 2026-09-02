@@ -125,7 +125,7 @@ def test_react_response_format_uses_schema_only_for_openai_provider_models():
                 api_key="deepseek-key",
                 base_url="https://api.deepseek.com/",
             ),
-            "deepseek-v4-flash",
+            "deepseek-v4-pro",
             "https://api.deepseek.com",
             "timeout",
         ),

@@ -126,7 +126,7 @@ def _model_name(run_config: RunConfig) -> str:
     if run_config.provider == "openai":
         return "gpt-4.1"
     if run_config.provider == "deepseek":
-        return "deepseek-v4-flash"
+        return "deepseek-v4-pro"
     return "default"
 
 
