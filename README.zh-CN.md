@@ -106,33 +106,42 @@ docker compose down
 - **模型列表获取失败：** 检查 provider、API key 和 Base URL。
 - **真实模型输出失败：** 先切到本地演示模式确认应用本身能正常运行，再切换到 `deepseek-v4-pro`。
 
-## 面向开发者
+## 架构设计
 
 CareerPilot Agent 是一个 evidence-grounded LLM application：顶层 workflow 固定，关键语义判断环节使用局部 ReAct Agent。
 
-### 架构
+### 系统概览
 
-```text
-FastAPI API
-  -> LangGraph 固定主流程
-      -> parse_inputs
-      -> index_profile
-      -> jd_analyst
-      -> resume_evidence_agent
-      -> match_strategist
-      -> resume_bullet_agent
-      -> interview_prep_agent
-      -> risk_auditor_agent
-      -> public_output_gate
-      -> finalize_response
-  -> Pydantic public response
+```mermaid
+flowchart TB
+    subgraph FE["Next.js 前端"]
+        UI["个人材料 / JD 输入"]
+        RESULT["结果 / 风险 / Agent trace"]
+    end
 
-中文 Next.js 前端
-  -> 个人材料 / JD 输入
-  -> PDF 文本提取
-  -> 模型 provider 设置
-  -> 模型列表获取
-  -> 结果、warning 和 agent trace 展示
+    subgraph BE["FastAPI 后端"]
+        API["REST API"]
+        subgraph WF["LangGraph 固定主流程"]
+            direction LR
+            N1["parse_inputs"] --> N2["index_profile"] --> N3["jd_analyst"]
+            N3 --> N4["resume_evidence_agent (ReAct)"]
+            N4 --> N5["match_strategist"] --> N6["resume_bullet_agent"]
+            N6 --> N7["interview_prep_agent (ReAct)"]
+            N7 --> N8["risk_auditor_agent (ReAct)"]
+            N8 --> N9["public_output_gate"] --> N10["finalize_response"]
+        end
+        API --> WF
+    end
+
+    subgraph INF["基础设施"]
+        RET["检索层：BGE + Chroma"]
+        LLM["模型层：DeepSeek / OpenAI / 本地演示"]
+    end
+
+    UI -->|"POST /analysis"| API
+    WF --> RET
+    WF --> LLM
+    RESULT --> API
 ```
 
 顶层 LangGraph 保持确定性的固定编排，不让 coordinator 自由调度。只有真正需要语义判断和多轮工具调用的局部节点使用 ReAct：
@@ -158,35 +167,6 @@ OpenAI provider 可以传 Pydantic `response_format`。DeepSeek 和 OpenAI-compa
 - `POST /documents/parse-pdf` 提取 10 MB 以内文字型 PDF 的文本。
 
 `POST /analysis` 返回 `AnalysisResponse`，包含状态、公开岗位要求、匹配分析、生成内容、评估报告、风险报告、processing warnings 和 agent traces。内部 ID 会被限制在 public output 边界内。
-
-### 检索配置
-
-测试可以使用 deterministic fake embedding 和 in-memory vector store：
-
-```bash
-RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
-```
-
-如需本地 BGE + Chroma 检索：
-
-```bash
-export BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
-export BGE_MODEL_CACHE_DIR=/path/to/bge-models
-export CHROMA_PATH=/path/to/career-agent-chroma
-```
-
-第一次真实检索运行可能会把 BGE 模型下载到 `BGE_MODEL_CACHE_DIR`。
-
-### 验证
-
-```bash
-RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
-cd frontend
-npm run check
-npm run build
-```
-
-稳定测试 fixtures 位于 `backend/tests/fixtures/`。
 
 ## 项目边界
 

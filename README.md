@@ -106,33 +106,42 @@ Notes:
 - **Model list fails:** check provider, API key, and Base URL.
 - **Live model output fails:** try local demo mode first to confirm the app itself is running, then switch to `deepseek-v4-pro`.
 
-## For Developers
+## Architecture
 
 CareerPilot Agent is built as an evidence-grounded LLM application with a fixed workflow and local ReAct agents for high-value reasoning steps.
 
-### Architecture
+### System Overview
 
-```text
-FastAPI API
-  -> LangGraph fixed workflow
-      -> parse_inputs
-      -> index_profile
-      -> jd_analyst
-      -> resume_evidence_agent
-      -> match_strategist
-      -> resume_bullet_agent
-      -> interview_prep_agent
-      -> risk_auditor_agent
-      -> public_output_gate
-      -> finalize_response
-  -> Pydantic public response
+```mermaid
+flowchart TB
+    subgraph FE["Next.js Frontend"]
+        UI["Profile / JD input"]
+        RESULT["Results / risks / agent trace"]
+    end
 
-Next.js Chinese frontend
-  -> profile/JD input
-  -> PDF text extraction
-  -> model provider settings
-  -> model list lookup
-  -> results, warnings, and agent trace display
+    subgraph BE["FastAPI Backend"]
+        API["REST API"]
+        subgraph WF["LangGraph Fixed Workflow"]
+            direction LR
+            N1["parse_inputs"] --> N2["index_profile"] --> N3["jd_analyst"]
+            N3 --> N4["resume_evidence_agent (ReAct)"]
+            N4 --> N5["match_strategist"] --> N6["resume_bullet_agent"]
+            N6 --> N7["interview_prep_agent (ReAct)"]
+            N7 --> N8["risk_auditor_agent (ReAct)"]
+            N8 --> N9["public_output_gate"] --> N10["finalize_response"]
+        end
+        API --> WF
+    end
+
+    subgraph INF["Infrastructure"]
+        RET["Retrieval: BGE + Chroma"]
+        LLM["Models: DeepSeek / OpenAI / local demo"]
+    end
+
+    UI -->|"POST /analysis"| API
+    WF --> RET
+    WF --> LLM
+    RESULT --> API
 ```
 
 The top-level LangGraph stays deterministic and fixed. Local semantic decisions are delegated only where they add value:
@@ -158,35 +167,6 @@ OpenAI can use Pydantic `response_format`. DeepSeek and OpenAI-compatible provid
 - `POST /documents/parse-pdf` extracts text from text-based PDFs up to 10 MB.
 
 `POST /analysis` returns an `AnalysisResponse` with status, public requirements, match analysis, generated assets, evaluation report, risk report, processing warnings, and agent traces. Internal IDs stay behind the public output boundary.
-
-### Retrieval Options
-
-Tests can run with deterministic fake embeddings and an in-memory vector store:
-
-```bash
-RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
-```
-
-For local BGE and Chroma retrieval:
-
-```bash
-export BGE_MODEL_NAME=BAAI/bge-large-zh-v1.5
-export BGE_MODEL_CACHE_DIR=/path/to/bge-models
-export CHROMA_PATH=/path/to/career-agent-chroma
-```
-
-The first live retrieval run may download the BGE model into `BGE_MODEL_CACHE_DIR`.
-
-### Verification
-
-```bash
-RETRIEVAL_BACKEND=fake conda run -n carrer_agent pytest -q
-cd frontend
-npm run check
-npm run build
-```
-
-Stable fixtures live in `backend/tests/fixtures/`.
 
 ## Project Boundaries
 
