@@ -19,10 +19,10 @@ CareerPilot Agent 是一个本地运行的 AI 求职助手。你提供个人简�
 
 ## 你需要准备什么
 
-- 一台可以运行 Python 和 Node.js 的电脑。
+- 一台安装了 [Docker Desktop](https://www.docker.com/products/docker-desktop/) 的电脑。
 - 文本、Markdown 或文字型 PDF 格式的个人材料。
 - 一个目标岗位 JD。
-- 可选：OpenAI、DeepSeek 或兼容接口的 API key，用于真实模型输出。
+- 可选：DeepSeek 或 OpenAI 的 API key，用于真实模型输出。
 
 本地演示模式不需要 API key，但它是 deterministic demo，不同输入可能会得到风格相近的输出。
 
@@ -35,7 +35,7 @@ git clone https://github.com/baihanshan/Career-Agent.git
 cd Career-Agent
 ```
 
-### Docker 启动（推荐给面试官 / 协作者）
+### Docker 启动（推荐）
 
 在任何机器（macOS / Windows / Linux）上最快跑起来的方式是 Docker。默认以 **fake 检索 + 本地演示模式** 启动——无需下载 BGE 模型、无需 API key。
 
@@ -61,105 +61,9 @@ docker compose down
 
 说明：
 
-- Docker 默认使用 `RETRIEVAL_BACKEND=fake`（词频计数 embedding + 内存向量库），因此可秒启动、无需下载 BGE 模型。如需真实 BGE + Chroma 检索，请用本机启动脚本运行。
-- 无需 API key——应用会回退到内置的本地演示模式。如需真实模型，请在 `docker-compose.yml` 的 `backend` 服务里添加 `OPENAI_API_KEY`（或 DeepSeek 配置）。
-
-### 一键本地启动（推荐）
-
-macOS 可以双击：
-
-```text
-scripts/start_app.command
-```
-
-或在终端运行：
-
-```bash
-scripts/start_app.sh
-```
-
-Windows 可以双击：
-
-```text
-scripts\start_app.bat
-```
-
-或在 PowerShell 运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1
-```
-
-启动器会自动：
-
-- 创建缺失的 `carrer_agent` conda 环境。
-- 安装缺失的后端依赖和前端依赖。
-- 启动 FastAPI 后端和 Next.js 前端。
-- 打开 `http://127.0.0.1:3000`。
-- 如果健康的后端或前端已经在运行，会直接复用。
-- macOS/Linux 将后端日志写入 `.local/logs/backend.log`；Windows 将后端日志写入 `.local/logs/backend.out.log` 和 `.local/logs/backend.err.log`。
-- 将前端日志写入 `.local/logs/frontend.log`。
-
-停止应用时，在启动器终端按 `Ctrl+C`。
-
-如果不想自动打开浏览器：
-
-```bash
-scripts/start_app.sh --no-browser
-```
-
-Windows PowerShell：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -NoBrowser
-```
-
-macOS/Linux 常用环境变量覆盖：
-
-```bash
-CONDA_ENV=carrer_agent BACKEND_PORT=8000 FRONTEND_PORT=3000 scripts/start_app.sh
-```
-
-Windows 常用参数覆盖：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -CondaEnv carrer_agent -BackendPort 8000 -FrontendPort 3000
-```
-
-如果端口已被占用但对应服务不健康，启动器会停止并提示你释放端口或换一个端口。
-
-### 手动启动（开发备用）
-
-如果你想分别观察前后端终端日志，也可以手动启动。
-
-先启动后端：
-
-```bash
-conda create -n carrer_agent python=3.11 -y
-conda activate carrer_agent
-pip install -r requirements-dev.txt
-conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
-```
-
-另开一个终端启动前端：
-
-```bash
-cd Career-Agent/frontend
-npm install
-npm run dev
-```
-
-打开：
-
-```text
-http://localhost:3000
-```
-
-前端默认请求 `http://localhost:8000`。如果你的后端地址不同，可以这样启动前端：
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
-```
+- Docker 默认使用 `RETRIEVAL_BACKEND=fake`（词频计数 embedding + 内存向量库），因此可秒启动、无需下载 BGE 模型。
+- 无需 API key——应用会回退到内置的本地演示模式。如需真实模型输出，请在模型设置里选择 **DeepSeek**（模型名用 `deepseek-v4-pro`）或 OpenAI，并粘贴你的 API key。
+- 一次完整分析会串行运行三个 ReAct 智能体，使用推理模型时通常需要 **10～15 分钟**。这是多智能体 workflow 的正常耗时，不是卡死。
 
 ## 如何使用
 
@@ -196,11 +100,11 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
 
 ## 常见问题
 
-- **后端连不上：** 确认 `uvicorn` 正在 `http://localhost:8000` 运行。
+- **应用启动不了：** 确认 Docker Desktop 正在运行，然后重新执行 `docker compose up --build`。
 - **前端分析失败：** 查看浏览器 Network 里的 `/analysis` response。
 - **PDF 上传失败：** 使用 10 MB 以内、未加密、可复制文字的 PDF，或直接粘贴文本。
-- **模型列表获取失败：** 检查 provider、API key 和 Base URL。兼容接口的 Base URL 通常应指向 OpenAI-compatible 根路径，例如 `/v1`。
-- **真实模型输出失败：** 先切到本地演示模式，确认应用本身能正常运行。
+- **模型列表获取失败：** 检查 provider、API key 和 Base URL。
+- **真实模型输出失败：** 先切到本地演示模式确认应用本身能正常运行，再切换到 `deepseek-v4-pro`。
 
 ## 面向开发者
 

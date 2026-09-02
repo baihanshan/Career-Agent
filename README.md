@@ -19,10 +19,10 @@ This project currently runs as a local web app. It is useful both as a job-searc
 
 ## What You Need
 
-- A computer that can run Python and Node.js.
+- A computer with [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed.
 - Your career materials in text form, Markdown, or a text-based PDF.
 - A target job description.
-- Optional: an OpenAI, DeepSeek, or OpenAI-compatible API key if you want live model output.
+- Optional: a DeepSeek or OpenAI API key if you want live model output.
 
 No API key is required for local demo mode, but demo mode is deterministic and may produce similar-looking outputs for different inputs.
 
@@ -35,7 +35,7 @@ git clone https://github.com/baihanshan/Career-Agent.git
 cd Career-Agent
 ```
 
-### Docker Launch (Recommended For Reviewers)
+### Docker Launch (Recommended)
 
 The fastest way to run the whole stack on any machine (macOS / Windows / Linux) is Docker. It starts the backend and frontend in **fake retrieval + local demo mode** by default — no BGE model download and no API key required.
 
@@ -61,103 +61,9 @@ docker compose down
 
 Notes:
 
-- Docker intentionally runs `RETRIEVAL_BACKEND=fake` (token-count embeddings + in-memory store) so it starts instantly without downloading the BGE model. For real BGE + Chroma retrieval, run locally with the launcher scripts.
-- No API key is required — the app falls back to the built-in local demo mode. To use a live model, add `OPENAI_API_KEY` (or DeepSeek settings) to the `backend` service in `docker-compose.yml`.
-
-### One-Command Local Launch Recommended
-
-On macOS, double-click:
-
-```text
-scripts/start_app.command
-```
-
-Or run this in a terminal:
-
-```bash
-scripts/start_app.sh
-```
-
-On Windows, double-click:
-
-```text
-scripts\start_app.bat
-```
-
-Or run this in PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1
-```
-
-The launcher will:
-
-- Create the `carrer_agent` conda environment if it is missing.
-- Install missing backend and frontend dependencies.
-- Start the FastAPI backend and Next.js frontend.
-- Open `http://127.0.0.1:3000`.
-- Reuse an already healthy backend or frontend if one is running.
-- Write backend logs to `.local/logs/backend.log` on macOS/Linux, or `.local/logs/backend.out.log` and `.local/logs/backend.err.log` on Windows.
-- Write frontend logs to `.local/logs/frontend.log`.
-
-Press `Ctrl+C` in the launcher terminal to stop services started by the launcher.
-
-To start without opening a browser:
-
-```bash
-scripts/start_app.sh --no-browser
-```
-
-On Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -NoBrowser
-```
-
-Useful macOS/Linux environment overrides:
-
-```bash
-CONDA_ENV=carrer_agent BACKEND_PORT=8000 FRONTEND_PORT=3000 scripts/start_app.sh
-```
-
-Useful Windows parameter overrides:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1 -CondaEnv carrer_agent -BackendPort 8000 -FrontendPort 3000
-```
-
-If a port is already in use but the expected service is not healthy, the launcher will stop and tell you which port to free or override.
-
-### Manual Launch For Development
-
-If you want separate backend and frontend terminals, start the backend first:
-
-```bash
-conda create -n carrer_agent python=3.11 -y
-conda activate carrer_agent
-pip install -r requirements-dev.txt
-conda run -n carrer_agent uvicorn backend.app.main:app --reload --log-level debug
-```
-
-Then start the frontend in another terminal:
-
-```bash
-cd Career-Agent/frontend
-npm install
-npm run dev
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-The frontend talks to `http://localhost:8000` by default. If your backend uses another address, start the frontend with:
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
-```
+- Docker intentionally runs `RETRIEVAL_BACKEND=fake` (token-count embeddings + in-memory store) so it starts instantly without downloading the BGE model.
+- No API key is required — the app falls back to the built-in local demo mode. For live output, select **DeepSeek** (use model `deepseek-v4-pro`) or OpenAI and paste your API key in the model settings.
+- A full analysis runs three ReAct agents sequentially and typically takes **10–15 minutes** with a reasoning model. This is expected for a multi-agent workflow, not a hang.
 
 ## How To Use The App
 
@@ -194,11 +100,11 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
 
 ## Troubleshooting
 
-- **The backend is not reachable:** make sure `uvicorn` is running on `http://localhost:8000`.
+- **The app doesn't start:** make sure Docker Desktop is running, then rerun `docker compose up --build`.
 - **The frontend cannot analyze:** check the browser Network tab for the `/analysis` response.
 - **PDF upload fails:** use a text-based, unencrypted PDF under 10 MB, or paste the text manually.
-- **Model list fails:** check provider, API key, and Base URL. For compatible providers, the Base URL should usually point to the OpenAI-compatible root such as `/v1`.
-- **Live model output fails:** try local demo mode first to confirm the app itself is running.
+- **Model list fails:** check provider, API key, and Base URL.
+- **Live model output fails:** try local demo mode first to confirm the app itself is running, then switch to `deepseek-v4-pro`.
 
 ## For Developers
 

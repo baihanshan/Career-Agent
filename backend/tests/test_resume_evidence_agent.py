@@ -307,7 +307,7 @@ def test_recursion_limit_scales_with_requirement_count(monkeypatch):
 
     ResumeEvidenceAgent(model=object()).run(state, _ScriptedRetrievalService([]))
 
-    assert captured_configs == [{"recursion_limit": 36}]
+    assert captured_configs == [{"recursion_limit": 20}]
 
 
 def test_graph_recursion_error_is_classified_separately(monkeypatch):
