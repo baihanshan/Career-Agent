@@ -35,6 +35,35 @@ git clone https://github.com/baihanshan/Career-Agent.git
 cd Career-Agent
 ```
 
+### Docker Launch (Recommended For Reviewers)
+
+The fastest way to run the whole stack on any machine (macOS / Windows / Linux) is Docker. It starts the backend and frontend in **fake retrieval + local demo mode** by default — no BGE model download and no API key required.
+
+Prerequisite: install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+The first build downloads base images and dependencies, which may take a few minutes.
+
+To stop:
+
+```bash
+docker compose down
+```
+
+Notes:
+
+- Docker intentionally runs `RETRIEVAL_BACKEND=fake` (token-count embeddings + in-memory store) so it starts instantly without downloading the BGE model. For real BGE + Chroma retrieval, run locally with the launcher scripts.
+- No API key is required — the app falls back to the built-in local demo mode. To use a live model, add `OPENAI_API_KEY` (or DeepSeek settings) to the `backend` service in `docker-compose.yml`.
+
 ### One-Command Local Launch Recommended
 
 On macOS, double-click:

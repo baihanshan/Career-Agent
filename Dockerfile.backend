@@ -1,0 +1,40 @@
+# CareerPilot Agent — 后端（FastAPI）
+#
+# 设计说明：
+# 为了让面试官/协作者在任何机器上"一条命令跑起来"，这里刻意不安装
+# sentence-transformers 与 chromadb 这两个重依赖（它们会拉入 torch，镜像会膨胀到 GB 级）。
+# Docker 默认走 fake 检索模式（RETRIEVAL_BACKEND=fake）+ 本地演示 LLM，
+# 无需下载 BGE 模型、无需 API key，即可完整演示整个 workflow。
+# 如需真实 BGE 向量检索 + Chroma，请使用本机启动脚本（见 README）。
+
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# 轻量运行时依赖（与 pyproject.toml 保持一致，但排除 sentence-transformers / chromadb）
+RUN pip install --no-cache-dir \
+    "fastapi>=0.115.0" \
+    "uvicorn[standard]>=0.30.0" \
+    "pydantic>=2.8.0" \
+    "httpx>=0.27.0" \
+    "langchain>=1.0.0" \
+    "langchain-core>=1.4.0" \
+    "langchain-deepseek>=1.0.0" \
+    "langchain-openai>=1.1.0" \
+    "langgraph>=1.2.5" \
+    "pypdf>=5.0.0" \
+    "python-multipart>=0.0.9"
+
+# 应用代码
+COPY backend ./backend
+
+# 默认数据/模型目录（真实检索模式下使用；fake 模式不会用到）
+RUN mkdir -p /app/.local/bge-models /app/.local/chroma
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

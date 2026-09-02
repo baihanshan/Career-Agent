@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      # 默认 fake 检索模式：不下载 BGE 模型、无需 Chroma，开箱即用
+      RETRIEVAL_BACKEND: fake
+      # 可选：填入你的 key 即可在 Docker 里使用真实 LLM（OpenAI / DeepSeek）
+      # OPENAI_API_KEY: ""
+      # OPENAI_MODEL: gpt-4.1
+    ports:
+      - "8000:8000"
+    volumes:
+      - careerpilot-data:/app/.local
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  careerpilot-data:
